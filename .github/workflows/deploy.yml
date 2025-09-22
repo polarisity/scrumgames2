@@ -1,0 +1,132 @@
+name: Deploy Scrum Poker Game
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual triggering
+
+env:
+  NODE_VERSION: '18'
+  DOCKER_IMAGE_NAME: scrum-poker
+  CONTAINER_NAME: scrum-poker-app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: ${{ env.DOCKER_IMAGE_NAME }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        docker run --rm -d -p 3000:3000 --name test-container ${{ env.DOCKER_IMAGE_NAME }}:latest
+        sleep 15
+        curl --fail http://localhost:3000 || exit 1
+        docker stop test-container
+
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Digital Ocean
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+
+    - name: Add server to known hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ secrets.DO_SERVER_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Create deployment package
+      run: |
+        tar -czf deployment.tar.gz \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='.github' \
+          --exclude='*.md' \
+          --exclude='.env*' \
+          .
+
+    - name: Copy files to server
+      run: |
+        scp deployment.tar.gz ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }}:/tmp/
+
+    - name: Deploy to server
+      run: |
+        ssh ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SERVER_HOST }} << 'ENDSSH'
+          set -e
+          
+          # Create deployment directory
+          sudo mkdir -p /opt/scrum-poker
+          cd /opt/scrum-poker
+          
+          # Backup current deployment
+          if [ -f docker-compose.yml ]; then
+            echo "Creating backup..."
+            sudo docker-compose down || true
+            sudo cp -r . ../scrum-poker-backup-$(date +%Y%m%d_%H%M%S) || true
+          fi
+          
+          # Extract new files
+          sudo tar -xzf /tmp/deployment.tar.gz -C /opt/scrum-poker
+          sudo rm /tmp/deployment.tar.gz
+          
+          # Set proper permissions
+          sudo chown -R $USER:$USER /opt/scrum-poker
+          
+          # Create production environment file
+          cat << EOF > .env
+        NODE_ENV=production
+        PORT=3000
+        EOF
+          
+          # Build and deploy
+          echo "Building and starting containers..."
+          sudo docker-compose build --no-cache
+          sudo docker-compose up -d
+          
+          # Clean up old images
+          sudo docker image prune -f
+          
+          # Health check
+          echo "Waiting for application to start..."
+          sleep 30
+          if curl --fail --silent http://localhost:3000 > /dev/null; then
+            echo "✅ Deployment successful! Application is running."
+          else
+            echo "❌ Deployment failed! Application is not responding."
+            sudo docker-compose logs
+            exit 1
+          fi
+        ENDSSH
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 Your Scrum Poker game is now live at: http://${{ secrets.DO_SERVER_HOST }}"
+        else
+          echo "💥 Deployment failed! Check the logs above for details."
+        fi
