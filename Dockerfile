@@ -4,12 +4,12 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY server/package*.json ./server/
+COPY server/package.json ./server/
 COPY server/tsconfig.json ./server/
 
 # Install dependencies
 WORKDIR /app/server
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY server/src ./src
@@ -25,7 +25,7 @@ WORKDIR /app
 # Copy built server files
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/server/node_modules ./server/node_modules
-COPY server/package*.json ./server/
+COPY server/package.json ./server/
 
 # Copy client files
 COPY client ./client
