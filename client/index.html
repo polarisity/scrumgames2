@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scrumptious</title>
+    <title>Scrum Poker - Fun Estimation Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,7 +11,31 @@
         <div id="loginScreen" class="screen active">
             <div class="login-container">
                 <h1>🎯 Scrum Poker Party</h1>
+                
                 <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+                
+                <div class="avatar-selector">
+                    <h3>Choose your avatar:</h3>
+                    <div class="avatar-grid">
+                        <div class="avatar-option" data-avatar="🦊">🦊</div>
+                        <div class="avatar-option" data-avatar="🐸">🐸</div>
+                        <div class="avatar-option" data-avatar="🦁">🦁</div>
+                        <div class="avatar-option" data-avatar="🐨">🐨</div>
+                        <div class="avatar-option" data-avatar="🐵">🐵</div>
+                        <div class="avatar-option" data-avatar="🦝">🦝</div>
+                        <div class="avatar-option" data-avatar="🐻">🐻</div>
+                        <div class="avatar-option" data-avatar="🐯">🐯</div>
+                        <div class="avatar-option" data-avatar="🐮">🐮</div>
+                        <div class="avatar-option" data-avatar="🐷">🐷</div>
+                        <div class="avatar-option" data-avatar="🐶">🐶</div>
+                        <div class="avatar-option" data-avatar="🐱">🐱</div>
+                        <div class="avatar-option" data-avatar="🐭">🐭</div>
+                        <div class="avatar-option" data-avatar="🐹">🐹</div>
+                        <div class="avatar-option" data-avatar="🐰">🐰</div>
+                        <div class="avatar-option" data-avatar="🦄">🦄</div>
+                    </div>
+                </div>
+                
                 <div class="button-group">
                     <button id="createRoomBtn" class="primary-btn">Create New Room</button>
                     <div class="or-divider">OR</div>
@@ -26,6 +50,9 @@
                 <div class="room-info">
                     <span>Room: <strong id="roomId"></strong></span>
                     <span id="playerCount">Players: 0</span>
+                </div>
+                <div class="controls-info">
+                    <span>🎮 Move: WASD/↑↓←→ or Click | Quick Cards: 1-8 Keys</span>
                 </div>
                 <div id="gameMasterControls" class="master-controls hidden">
                     <button id="revealBtn" class="control-btn">Reveal Cards</button>

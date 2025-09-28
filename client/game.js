@@ -11,6 +11,18 @@ class ScrumPokerGame {
         this.cardsRevealed = false;
         this.animations = new Map();
         this.mousePos = { x: 0, y: 0 };
+        this.selectedAvatar = null;
+        
+        // Keyboard movement state
+        this.keys = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+        this.moveSpeed = 5;
+        this.lastMoveTime = 0;
+        this.moveInterval = 50; // milliseconds between movement updates
         
         this.init();
     }
@@ -18,15 +30,29 @@ class ScrumPokerGame {
     init() {
         this.setupEventListeners();
         this.setupCanvasEvents();
+        this.setupKeyboardControls();
         this.startGameLoop();
     }
 
     setupEventListeners() {
+        // Avatar selection
+        document.querySelectorAll('.avatar-option').forEach(avatar => {
+            avatar.addEventListener('click', () => {
+                document.querySelectorAll('.avatar-option').forEach(a => a.classList.remove('selected'));
+                avatar.classList.add('selected');
+                this.selectedAvatar = avatar.dataset.avatar;
+            });
+        });
+
         // Login screen
         document.getElementById('createRoomBtn').addEventListener('click', () => {
             const name = document.getElementById('playerName').value.trim();
             if (!name) {
                 alert('Please enter your name');
+                return;
+            }
+            if (!this.selectedAvatar) {
+                alert('Please select an avatar');
                 return;
             }
             this.connectAndCreateRoom(name);
@@ -37,6 +63,10 @@ class ScrumPokerGame {
             const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
             if (!name) {
                 alert('Please enter your name');
+                return;
+            }
+            if (!this.selectedAvatar) {
+                alert('Please select an avatar');
                 return;
             }
             if (!roomCode) {
@@ -105,6 +135,143 @@ class ScrumPokerGame {
         });
     }
 
+    setupKeyboardControls() {
+        // Keyboard down events
+        document.addEventListener('keydown', (e) => {
+            // Prevent keyboard controls when typing in input fields
+            if (e.target.tagName === 'INPUT') return;
+            
+            let changed = false;
+            
+            switch(e.key.toLowerCase()) {
+                case 'arrowup':
+                case 'w':
+                    if (!this.keys.up) {
+                        this.keys.up = true;
+                        changed = true;
+                    }
+                    e.preventDefault();
+                    break;
+                case 'arrowdown':
+                case 's':
+                    if (!this.keys.down) {
+                        this.keys.down = true;
+                        changed = true;
+                    }
+                    e.preventDefault();
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    if (!this.keys.left) {
+                        this.keys.left = true;
+                        changed = true;
+                    }
+                    e.preventDefault();
+                    break;
+                case 'arrowright':
+                case 'd':
+                    if (!this.keys.right) {
+                        this.keys.right = true;
+                        changed = true;
+                    }
+                    e.preventDefault();
+                    break;
+                // Number keys for quick card selection
+                case '1':
+                case '2':
+                case '3':
+                case '5':
+                case '8':
+                    if (e.target.tagName !== 'INPUT') {
+                        this.selectCardByValue(e.key);
+                    }
+                    break;
+            }
+            
+            if (changed) {
+                this.updatePlayerMovement();
+            }
+        });
+
+        // Keyboard up events
+        document.addEventListener('keyup', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            
+            switch(e.key.toLowerCase()) {
+                case 'arrowup':
+                case 'w':
+                    this.keys.up = false;
+                    break;
+                case 'arrowdown':
+                case 's':
+                    this.keys.down = false;
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    this.keys.left = false;
+                    break;
+                case 'arrowright':
+                case 'd':
+                    this.keys.right = false;
+                    break;
+            }
+        });
+    }
+
+    updatePlayerMovement() {
+        if (!this.socket || !this.myId) return;
+        
+        const now = Date.now();
+        if (now - this.lastMoveTime < this.moveInterval) return;
+        
+        const myPlayer = this.players.get(this.myId);
+        if (!myPlayer) return;
+        
+        let newX = myPlayer.x;
+        let newY = myPlayer.y;
+        let moved = false;
+        
+        if (this.keys.up && !this.keys.down) {
+            newY -= this.moveSpeed;
+            moved = true;
+        }
+        if (this.keys.down && !this.keys.up) {
+            newY += this.moveSpeed;
+            moved = true;
+        }
+        if (this.keys.left && !this.keys.right) {
+            newX -= this.moveSpeed;
+            moved = true;
+        }
+        if (this.keys.right && !this.keys.left) {
+            newX += this.moveSpeed;
+            moved = true;
+        }
+        
+        // Keep player within canvas bounds
+        newX = Math.max(30, Math.min(this.canvas.width - 30, newX));
+        newY = Math.max(30, Math.min(this.canvas.height - 30, newY));
+        
+        if (moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
+            this.socket.emit('move', { x: newX, y: newY });
+            this.lastMoveTime = now;
+        }
+    }
+
+    selectCardByValue(value) {
+        if (!this.cardsRevealed) {
+            const card = document.querySelector(`.card[data-value="${value}"]`);
+            if (card) {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                this.selectedCard = value;
+                if (this.socket) {
+                    this.socket.emit('selectCard', this.selectedCard);
+                }
+            }
+        }
+    }
+
     setupCanvasEvents() {
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
@@ -127,24 +294,24 @@ class ScrumPokerGame {
     }
 
     connectAndCreateRoom(playerName) {
-        console.log('Creating room for player:', playerName);
+        console.log('Creating room for player:', playerName, 'with avatar:', this.selectedAvatar);
         this.socket = io();
         this.setupSocketListeners();
         
         this.socket.on('connect', () => {
             console.log('Connected, creating room...');
-            this.socket.emit('createRoom', playerName);
+            this.socket.emit('createRoom', { playerName, avatar: this.selectedAvatar });
         });
     }
 
     connectAndJoinRoom(playerName, roomCode) {
-        console.log('Joining room:', roomCode, 'for player:', playerName);
+        console.log('Joining room:', roomCode, 'for player:', playerName, 'with avatar:', this.selectedAvatar);
         this.socket = io();
         this.setupSocketListeners();
         
         this.socket.on('connect', () => {
             console.log('Connected, joining room...');
-            this.socket.emit('joinRoom', { roomId: roomCode, playerName });
+            this.socket.emit('joinRoom', { roomId: roomCode, playerName, avatar: this.selectedAvatar });
         });
     }
 
@@ -270,6 +437,11 @@ class ScrumPokerGame {
     }
 
     update() {
+        // Continuous keyboard movement
+        if (this.keys.up || this.keys.down || this.keys.left || this.keys.right) {
+            this.updatePlayerMovement();
+        }
+        
         // Update throwable positions
         this.throwables.forEach(throwable => {
             const progress = (Date.now() - throwable.timestamp) / 1000; // seconds
@@ -311,6 +483,9 @@ class ScrumPokerGame {
 
         // Draw hover effects
         this.drawHoverEffects();
+        
+        // Draw controls hint
+        this.drawControlsHint();
     }
 
     drawGrid() {
@@ -465,6 +640,14 @@ class ScrumPokerGame {
             this.ctx.stroke();
             this.ctx.setLineDash([]);
         }
+    }
+
+    drawControlsHint() {
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('Move: WASD/Arrow Keys or Click', 10, 20);
+        this.ctx.fillText('Quick Select: Number Keys 1-8', 10, 35);
     }
 }
 
