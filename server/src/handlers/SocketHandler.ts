@@ -15,17 +15,21 @@ export class SocketHandler {
   handleConnection(socket: Socket): void {
     console.log(`Player connected: ${socket.id}`);
 
-    socket.on('createRoom', (playerName: string) => {
+    // Handle both old format (string) and new format (object with avatar)
+    socket.on('createRoom', (data: string | { playerName: string; avatar: string }) => {
+      const playerName = typeof data === 'string' ? data : data.playerName;
+      const avatar = typeof data === 'string' ? null : data.avatar;
+      
       const roomId = this.roomService.createRoom();
       console.log(`Room created: ${roomId}`);
-      this.handleJoinRoom(socket, roomId, playerName);
+      this.handleJoinRoom(socket, roomId, playerName, avatar);
     });
 
-    socket.on('joinRoom', ({ roomId, playerName }: { roomId: string; playerName: string }) => {
-      console.log(`Player ${playerName} attempting to join room: ${roomId}`);
+    socket.on('joinRoom', (data: { roomId: string; playerName: string; avatar?: string }) => {
+      console.log(`Player ${data.playerName} attempting to join room: ${data.roomId}`);
       
       // Convert to uppercase to match what was created
-      const upperRoomId = roomId.toUpperCase();
+      const upperRoomId = data.roomId.toUpperCase();
       
       // Check if room exists
       const room = this.roomService.getRoom(upperRoomId);
@@ -35,7 +39,7 @@ export class SocketHandler {
         return;
       }
       
-      this.handleJoinRoom(socket, upperRoomId, playerName);
+      this.handleJoinRoom(socket, upperRoomId, data.playerName, data.avatar || null);
     });
 
     socket.on('move', ({ x, y }: { x: number; y: number }) => {
@@ -124,7 +128,7 @@ export class SocketHandler {
     });
   }
 
-  private handleJoinRoom(socket: Socket, roomId: string, playerName: string): void {
+  private handleJoinRoom(socket: Socket, roomId: string, playerName: string, selectedAvatar: string | null): void {
     // Make sure room exists
     let room = this.roomService.getRoom(roomId);
     
@@ -135,14 +139,17 @@ export class SocketHandler {
     }
 
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FD79A8'];
-    const avatars = ['🦊', '🐸', '🦁', '🐨', '🐵', '🦝', '🐻', '🐯'];
+    const defaultAvatars = ['🦊', '🐸', '🦁', '🐨', '🐵', '🦝', '🐻', '🐯'];
+    
+    // Use the selected avatar or pick a random one
+    const avatar = selectedAvatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
     
     const player: Player = {
       id: socket.id,
       name: playerName,
       x: Math.random() * 600 + 100,
       y: Math.random() * 400 + 100,
-      avatar: avatars[Math.floor(Math.random() * avatars.length)],
+      avatar: avatar,
       isGameMaster: false,
       color: colors[Math.floor(Math.random() * colors.length)]
     };
@@ -158,7 +165,7 @@ export class SocketHandler {
     
     socket.join(roomId);
     socket.emit('roomJoined', { roomId, playerId: socket.id });
-    console.log(`Player ${playerName} (${socket.id}) successfully joined room ${roomId}`);
+    console.log(`Player ${playerName} (${socket.id}) with avatar ${avatar} successfully joined room ${roomId}`);
     
     this.broadcastRoomState(roomId);
   }
