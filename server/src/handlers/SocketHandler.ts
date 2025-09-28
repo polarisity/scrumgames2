@@ -1,3 +1,4 @@
+// /server/src/handlers/SocketHandler.ts
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
@@ -16,11 +17,25 @@ export class SocketHandler {
 
     socket.on('createRoom', (playerName: string) => {
       const roomId = this.roomService.createRoom();
+      console.log(`Room created: ${roomId}`);
       this.handleJoinRoom(socket, roomId, playerName);
     });
 
     socket.on('joinRoom', ({ roomId, playerName }: { roomId: string; playerName: string }) => {
-      this.handleJoinRoom(socket, roomId, playerName);
+      console.log(`Player ${playerName} attempting to join room: ${roomId}`);
+      
+      // Convert to uppercase to match what was created
+      const upperRoomId = roomId.toUpperCase();
+      
+      // Check if room exists
+      const room = this.roomService.getRoom(upperRoomId);
+      if (!room) {
+        console.log(`Room ${upperRoomId} not found`);
+        socket.emit('error', 'Room not found. Please check the room code and try again.');
+        return;
+      }
+      
+      this.handleJoinRoom(socket, upperRoomId, playerName);
     });
 
     socket.on('move', ({ x, y }: { x: number; y: number }) => {
@@ -99,17 +114,22 @@ export class SocketHandler {
     socket.on('disconnect', () => {
       const roomId = this.playerRoomMap.get(socket.id);
       if (roomId) {
+        console.log(`Player ${socket.id} disconnected from room ${roomId}`);
         this.roomService.removePlayer(roomId, socket.id);
         this.playerRoomMap.delete(socket.id);
         this.broadcastRoomState(roomId);
+      } else {
+        console.log(`Player disconnected: ${socket.id}`);
       }
-      console.log(`Player disconnected: ${socket.id}`);
     });
   }
 
   private handleJoinRoom(socket: Socket, roomId: string, playerName: string): void {
-    const room = this.roomService.getRoom(roomId);
-    if (!room && roomId !== this.roomService.createRoom()) {
+    // Make sure room exists
+    let room = this.roomService.getRoom(roomId);
+    
+    if (!room) {
+      console.log(`Room ${roomId} doesn't exist, cannot join`);
       socket.emit('error', 'Room not found');
       return;
     }
@@ -127,11 +147,19 @@ export class SocketHandler {
       color: colors[Math.floor(Math.random() * colors.length)]
     };
 
-    this.roomService.addPlayer(roomId, player);
+    const added = this.roomService.addPlayer(roomId, player);
+    if (!added) {
+      console.log(`Failed to add player to room ${roomId}`);
+      socket.emit('error', 'Failed to join room');
+      return;
+    }
+    
     this.playerRoomMap.set(socket.id, roomId);
     
     socket.join(roomId);
     socket.emit('roomJoined', { roomId, playerId: socket.id });
+    console.log(`Player ${playerName} (${socket.id}) successfully joined room ${roomId}`);
+    
     this.broadcastRoomState(roomId);
   }
 
