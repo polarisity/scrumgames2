@@ -6,29 +6,39 @@ export class RoomService {
 
   createRoom(): string {
     const roomId = uuidv4().substring(0, 6).toUpperCase();
-    this.rooms.set(roomId, {
+    const room: Room = {
       id: roomId,
       players: new Map(),
       cardsRevealed: false,
       throwables: []
-    });
+    };
+    this.rooms.set(roomId, room);
+    console.log(`Created room: ${roomId}, Total rooms: ${this.rooms.size}`);
+    console.log('Available rooms:', Array.from(this.rooms.keys()));
     return roomId;
   }
 
   getRoom(roomId: string): Room | undefined {
-    return this.rooms.get(roomId);
+    const room = this.rooms.get(roomId);
+    console.log(`Getting room ${roomId}: ${room ? 'found' : 'not found'}`);
+    return room;
   }
 
   addPlayer(roomId: string, player: Player): boolean {
     const room = this.rooms.get(roomId);
-    if (!room) return false;
+    if (!room) {
+      console.log(`Cannot add player to room ${roomId}: room not found`);
+      return false;
+    }
     
     // First player becomes game master
     if (room.players.size === 0) {
       player.isGameMaster = true;
+      console.log(`Player ${player.name} is now game master of room ${roomId}`);
     }
     
     room.players.set(player.id, player);
+    console.log(`Added player ${player.name} to room ${roomId}. Room now has ${room.players.size} players`);
     return true;
   }
 
@@ -36,18 +46,25 @@ export class RoomService {
     const room = this.rooms.get(roomId);
     if (!room) return;
     
-    const wasGameMaster = room.players.get(playerId)?.isGameMaster;
+    const player = room.players.get(playerId);
+    const wasGameMaster = player?.isGameMaster;
     room.players.delete(playerId);
+    
+    console.log(`Removed player from room ${roomId}. Room now has ${room.players.size} players`);
     
     // Assign new game master if needed
     if (wasGameMaster && room.players.size > 0) {
       const newMaster = room.players.values().next().value;
-      if (newMaster) newMaster.isGameMaster = true;
+      if (newMaster) {
+        newMaster.isGameMaster = true;
+        console.log(`New game master assigned in room ${roomId}`);
+      }
     }
     
     // Delete empty rooms
     if (room.players.size === 0) {
       this.rooms.delete(roomId);
+      console.log(`Deleted empty room ${roomId}. Total rooms: ${this.rooms.size}`);
     }
   }
 
@@ -65,6 +82,7 @@ export class RoomService {
     const player = room?.players.get(playerId);
     if (player && !room?.cardsRevealed) {
       player.card = card;
+      console.log(`Player ${playerId} selected card ${card} in room ${roomId}`);
     }
   }
 
@@ -72,6 +90,7 @@ export class RoomService {
     const room = this.rooms.get(roomId);
     if (room) {
       room.cardsRevealed = true;
+      console.log(`Cards revealed in room ${roomId}`);
       return true;
     }
     return false;
@@ -85,6 +104,7 @@ export class RoomService {
         player.card = undefined;
       });
       room.throwables = [];
+      console.log(`Cards reset in room ${roomId}`);
     }
   }
 
@@ -100,5 +120,10 @@ export class RoomService {
         }
       }, 3000);
     }
+  }
+
+  // Optional: Add this method for debugging
+  getRoomList(): string[] {
+    return Array.from(this.rooms.keys());
   }
 }
