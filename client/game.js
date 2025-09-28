@@ -25,16 +25,42 @@ class ScrumPokerGame {
         // Login screen
         document.getElementById('createRoomBtn').addEventListener('click', () => {
             const name = document.getElementById('playerName').value.trim();
-            if (name) {
-                this.connectAndCreateRoom(name);
+            if (!name) {
+                alert('Please enter your name');
+                return;
             }
+            this.connectAndCreateRoom(name);
         });
 
         document.getElementById('joinRoomBtn').addEventListener('click', () => {
             const name = document.getElementById('playerName').value.trim();
             const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
-            if (name && roomCode) {
-                this.connectAndJoinRoom(name, roomCode);
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            if (!roomCode) {
+                alert('Please enter a room code');
+                return;
+            }
+            this.connectAndJoinRoom(name, roomCode);
+        });
+
+        // Allow Enter key to submit
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const roomCode = document.getElementById('roomCode').value.trim();
+                if (roomCode) {
+                    document.getElementById('joinRoomBtn').click();
+                } else {
+                    document.getElementById('createRoomBtn').click();
+                }
+            }
+        });
+
+        document.getElementById('roomCode').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('joinRoomBtn').click();
             }
         });
 
@@ -94,24 +120,37 @@ class ScrumPokerGame {
             const y = e.clientY - rect.top;
             
             // Move player to clicked position
-            this.socket.emit('move', { x, y });
+            if (this.socket) {
+                this.socket.emit('move', { x, y });
+            }
         });
     }
 
     connectAndCreateRoom(playerName) {
+        console.log('Creating room for player:', playerName);
         this.socket = io();
         this.setupSocketListeners();
-        this.socket.emit('createRoom', playerName);
+        
+        this.socket.on('connect', () => {
+            console.log('Connected, creating room...');
+            this.socket.emit('createRoom', playerName);
+        });
     }
 
     connectAndJoinRoom(playerName, roomCode) {
+        console.log('Joining room:', roomCode, 'for player:', playerName);
         this.socket = io();
         this.setupSocketListeners();
-        this.socket.emit('joinRoom', { roomId: roomCode, playerName });
+        
+        this.socket.on('connect', () => {
+            console.log('Connected, joining room...');
+            this.socket.emit('joinRoom', { roomId: roomCode, playerName });
+        });
     }
 
     setupSocketListeners() {
         this.socket.on('roomJoined', ({ roomId, playerId }) => {
+            console.log('Successfully joined room:', roomId);
             this.roomId = roomId;
             this.myId = playerId;
             document.getElementById('roomId').textContent = roomId;
@@ -149,7 +188,21 @@ class ScrumPokerGame {
         });
 
         this.socket.on('error', (message) => {
+            console.error('Socket error:', message);
             alert(`Error: ${message}`);
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            alert('Failed to connect to server. Please check your connection and try again.');
+        });
+
+        this.socket.on('disconnect', (reason) => {
+            console.log('Disconnected:', reason);
+            if (reason === 'io server disconnect') {
+                alert('You were disconnected from the server.');
+                location.reload();
+            }
         });
     }
 
@@ -280,7 +333,7 @@ class ScrumPokerGame {
     }
 
     drawPlayer(player) {
-        const x = player.x;
+        let x = player.x;
         let y = player.y;
 
         // Apply animation effects
