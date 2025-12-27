@@ -21,6 +21,10 @@ body {
     height: 100vh;
 }
 
+.hidden {
+    display: none !important;
+}
+
 .screen.active {
     display: flex;
     justify-content: center;
@@ -318,6 +322,22 @@ body {
     cursor: pointer;
     border: none;
     transition: all 0.2s;
+}
+
+.small-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    background: #6c5ce7;
+    color: white;
+}
+
+.small-btn:hover {
+    background: #a29bfe;
 }
 
 .reveal-btn {

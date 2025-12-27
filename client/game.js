@@ -354,6 +354,10 @@ class ScrumPokerGame {
             this.myId = playerId;
             document.getElementById('roomId').textContent = roomId;
             this.showGameScreen();
+
+            // Initial check for game master status (though usually handled by roomState)
+            const myPlayer = this.players.get(this.myId);
+            this.updateHostControls(myPlayer?.isGameMaster);
         });
 
         this.socket.on('roomState', (state) => {
@@ -390,13 +394,7 @@ class ScrumPokerGame {
 
             // Show/hide game master controls
             const myPlayer = this.players.get(this.myId);
-            if (myPlayer?.isGameMaster) {
-                document.getElementById('gameMasterControls').classList.remove('hidden');
-                document.getElementById('gmStoryControls').classList.remove('hidden');
-            } else {
-                document.getElementById('gameMasterControls').classList.add('hidden');
-                document.getElementById('gmStoryControls').classList.add('hidden');
-            }
+            this.updateHostControls(myPlayer?.isGameMaster);
         });
 
         this.socket.on('itemThrown', (throwable) => {
@@ -431,6 +429,19 @@ class ScrumPokerGame {
         document.getElementById('loginScreen').classList.remove('active');
         document.getElementById('gameScreen').classList.add('active');
         this.updatePlayerList();
+    }
+
+    updateHostControls(isGameMaster) {
+        const gmControls = document.getElementById('gameMasterControls');
+        const storyControls = document.getElementById('gmStoryControls');
+
+        if (isGameMaster) {
+            gmControls.classList.remove('hidden');
+            storyControls.classList.remove('hidden');
+        } else {
+            gmControls.classList.add('hidden');
+            storyControls.classList.add('hidden');
+        }
     }
 
     updatePlayerList() {
