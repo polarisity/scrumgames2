@@ -24,6 +24,24 @@ class ScrumPokerGame {
         this.lastMoveTime = 0;
         this.moveInterval = 50; // milliseconds between movement updates
 
+        // Asset management
+        this.assets = {
+            background: new Image(),
+            spritesheet: new Image()
+        };
+        this.assets.background.src = 'office_map_background_1766829228796.png'; // Need correct path
+        this.assets.spritesheet.src = 'pixel_characters_spritesheet_1766829250783.png'; // Need correct path
+
+        // Sprite configuration
+        this.spriteConfig = {
+            hero: { row: 0 },
+            mage: { row: 1 },
+            rogue: { row: 2 },
+            goblin: { row: 3 },
+            width: 80, // Approximate width of one character set in spritesheet
+            height: 100 // Approximate height
+        };
+
         this.init();
     }
 
@@ -281,10 +299,21 @@ class ScrumPokerGame {
         }
 
         // Keep player within canvas bounds
-        newX = Math.max(30, Math.min(this.canvas.width - 30, newX));
-        newY = Math.max(30, Math.min(this.canvas.height - 30, newY));
+        newX = Math.max(20, Math.min(this.canvas.width - 20, newX));
+        newY = Math.max(20, Math.min(this.canvas.height - 20, newY));
 
-        if (moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
+        // Collision detection with other players
+        let collision = false;
+        this.players.forEach((player, id) => {
+            if (id !== this.myId) {
+                const dist = Math.hypot(newX - player.x, newY - player.y);
+                if (dist < 40) { // Solid radius
+                    collision = true;
+                }
+            }
+        });
+
+        if (!collision && moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
             this.socket.emit('move', { x: newX, y: newY });
             this.lastMoveTime = now;
         }
@@ -679,11 +708,17 @@ class ScrumPokerGame {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw grid background
-        this.drawGrid();
+        // Draw office map background
+        if (this.assets.background.complete) {
+            this.ctx.drawImage(this.assets.background, 0, 0, this.canvas.width, this.canvas.height);
+        } else {
+            this.drawGrid();
+        }
 
         // Draw players
-        this.players.forEach(player => {
+        // Sort players by Y coordinate for proper depth rendering
+        const sortedPlayers = Array.from(this.players.values()).sort((a, b) => a.y - b.y);
+        sortedPlayers.forEach(player => {
             this.drawPlayer(player);
         });
 
@@ -700,7 +735,7 @@ class ScrumPokerGame {
     }
 
     drawGrid() {
-        this.ctx.strokeStyle = '#f0f0f0';
+        this.ctx.strokeStyle = '#333';
         this.ctx.lineWidth = 1;
 
         for (let x = 0; x < this.canvas.width; x += 50) {
@@ -729,70 +764,73 @@ class ScrumPokerGame {
 
             switch (animation.type) {
                 case 'jump':
-                    y -= Math.sin(progress * Math.PI) * 30;
+                    y -= Math.sin(progress * Math.PI) * 20;
                     break;
                 case 'dance':
-                    x += Math.sin(progress * Math.PI * 4) * 10;
-                    break;
-                case 'wave':
-                    // Handled in avatar drawing
+                    x += Math.sin(progress * Math.PI * 4) * 5;
                     break;
             }
         }
 
         // Draw shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         this.ctx.beginPath();
-        this.ctx.ellipse(x, player.y + 40, 25, 10, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(x, player.y + 5, 15, 6, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Draw player circle
-        this.ctx.fillStyle = player.color;
-        this.ctx.strokeStyle = player.id === this.myId ? '#333' : '#666';
-        this.ctx.lineWidth = player.id === this.myId ? 4 : 2;
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, 30, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.stroke();
+        // Draw Sprite
+        if (this.assets.spritesheet.complete) {
+            const config = this.spriteConfig[player.avatar] || this.spriteConfig.hero;
+            // Simplified sprite selection: just use the front-facing (first) frame for now
+            // In a full implementation, we'd use player direction
+            const frameWidth = this.assets.spritesheet.width / 3;
+            const frameHeight = this.assets.spritesheet.height / 4;
 
-        // Draw avatar
-        this.ctx.font = '30px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(player.avatar, x, y);
-
-        // Draw name
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.fillText(player.name, x, y + 50);
-
-        // Draw game master crown
-        if (player.isGameMaster) {
-            this.ctx.fillText('👑', x, y - 45);
+            this.ctx.drawImage(
+                this.assets.spritesheet,
+                0, config.row * frameHeight, frameWidth, frameHeight, // Source
+                x - 32, y - 60, 64, 64 // Destination (centered and scaled)
+            );
+        } else {
+            // Fallback to circle if assets not loaded
+            this.ctx.fillStyle = player.color;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, 20, 0, Math.PI * 2);
+            this.ctx.fill();
         }
 
-        // Draw card
+        // Draw name label above head
+        this.ctx.fillStyle = 'white';
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 3;
+        this.ctx.font = 'bold 14px Inter';
+        this.ctx.textAlign = 'center';
+
+        const labelY = y - 70;
+        this.ctx.strokeText(player.name, x, labelY);
+        this.ctx.fillText(player.name, x, labelY);
+
+        if (player.isGameMaster) {
+            this.ctx.fillText('👑', x, labelY - 20);
+        }
+
+        // Draw selection card
         if (player.card !== undefined) {
-            const cardY = y - 70;
+            const cardY = labelY - 40;
+            this.ctx.fillStyle = '#fffa65';
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 2;
+            this.ctx.fillRect(x - 15, cardY - 20, 30, 40);
+            this.ctx.strokeRect(x - 15, cardY - 20, 30, 40);
 
             if (this.cardsRevealed) {
-                // Show card value
-                this.ctx.fillStyle = 'white';
-                this.ctx.fillRect(x - 20, cardY - 15, 40, 30);
-                this.ctx.strokeStyle = '#667eea';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(x - 20, cardY - 15, 40, 30);
-
-                this.ctx.fillStyle = '#667eea';
-                this.ctx.font = 'bold 18px Arial';
-                this.ctx.fillText(player.card, x, cardY);
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = 'bold 16px Inter';
+                this.ctx.fillText(player.card, x, cardY + 5);
             } else {
-                // Show card back
-                this.ctx.fillStyle = '#667eea';
-                this.ctx.fillRect(x - 20, cardY - 15, 40, 30);
-                this.ctx.fillStyle = 'white';
-                this.ctx.font = '16px Arial';
-                this.ctx.fillText('?', x, cardY);
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = 'bold 16px Inter';
+                this.ctx.fillText('?', x, cardY + 5);
             }
         }
 

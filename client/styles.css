@@ -5,14 +5,16 @@
 }
 
 body {
-    font-family: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: radial-gradient(circle at top left, #2d3436, #000000);
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1a1a1a;
     color: #f5f6fa;
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow-x: hidden;
+    image-rendering: pixelated;
+    /* Crucial for pixel art */
 }
 
 .screen {
@@ -107,10 +109,11 @@ body {
 }
 
 .avatar-option.selected {
-    border-color: #764ba2;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    transform: scale(1.15);
-    box-shadow: 0 5px 20px rgba(118, 75, 162, 0.4);
+    border-color: #ffd32a;
+    background: #ffd32a;
+    color: #000;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 4px #000;
 }
 
 .button-group {
@@ -436,12 +439,13 @@ body {
 }
 
 #gameCanvas {
-    background: #fdfdfd;
+    background: #2d3436;
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    box-shadow: 0 0 0 4px #000;
+    image-rendering: pixelated;
 }
 
 .card-selector {
