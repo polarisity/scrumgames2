@@ -10,7 +10,8 @@ export class RoomService {
       id: roomId,
       players: new Map(),
       cardsRevealed: false,
-      throwables: []
+      throwables: [],
+      messages: []
     };
     this.rooms.set(roomId, room);
     console.log(`Created room: ${roomId}, Total rooms: ${this.rooms.size}`);
@@ -30,13 +31,13 @@ export class RoomService {
       console.log(`Cannot add player to room ${roomId}: room not found`);
       return false;
     }
-    
+
     // First player becomes game master
     if (room.players.size === 0) {
       player.isGameMaster = true;
       console.log(`Player ${player.name} is now game master of room ${roomId}`);
     }
-    
+
     room.players.set(player.id, player);
     console.log(`Added player ${player.name} to room ${roomId}. Room now has ${room.players.size} players`);
     return true;
@@ -45,13 +46,13 @@ export class RoomService {
   removePlayer(roomId: string, playerId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
-    
+
     const player = room.players.get(playerId);
     const wasGameMaster = player?.isGameMaster;
     room.players.delete(playerId);
-    
+
     console.log(`Removed player from room ${roomId}. Room now has ${room.players.size} players`);
-    
+
     // Assign new game master if needed
     if (wasGameMaster && room.players.size > 0) {
       const newMaster = room.players.values().next().value;
@@ -60,7 +61,7 @@ export class RoomService {
         console.log(`New game master assigned in room ${roomId}`);
       }
     }
-    
+
     // Delete empty rooms
     if (room.players.size === 0) {
       this.rooms.delete(roomId);
@@ -107,7 +108,6 @@ export class RoomService {
       console.log(`Cards reset in room ${roomId}`);
     }
   }
-
   addThrowable(roomId: string, throwable: Throwable): void {
     const room = this.rooms.get(roomId);
     if (room) {
@@ -119,6 +119,25 @@ export class RoomService {
           room.throwables.splice(index, 1);
         }
       }, 3000);
+    }
+  }
+
+  updateStory(roomId: string, story: string): void {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      room.currentStory = story;
+      console.log(`Story updated to "${story}" in room ${roomId}`);
+    }
+  }
+
+  addMessage(roomId: string, message: any): void {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      room.messages.push(message);
+      // Keep only last 50 messages
+      if (room.messages.length > 50) {
+        room.messages.shift();
+      }
     }
   }
 

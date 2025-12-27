@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scrum Poker - Fun Estimation Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div id="app">
         <div id="loginScreen" class="screen active">
             <div class="login-container">
                 <h1>🎯 Scrum Poker Party</h1>
-                
+
                 <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
-                
+
                 <div class="avatar-selector">
                     <h3>Choose your avatar:</h3>
                     <div class="avatar-grid">
@@ -35,7 +37,7 @@
                         <div class="avatar-option" data-avatar="🦄">🦄</div>
                     </div>
                 </div>
-                
+
                 <div class="button-group">
                     <button id="createRoomBtn" class="primary-btn">Create New Room</button>
                     <div class="or-divider">OR</div>
@@ -46,54 +48,105 @@
         </div>
 
         <div id="gameScreen" class="screen">
-            <div class="game-header">
-                <div class="room-info">
-                    <span>Room: <strong id="roomId"></strong></span>
-                    <span id="playerCount">Players: 0</span>
+            <div class="room-info">
+                <span>Room: <strong id="roomId"></strong></span>
+                <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
+                <span id="playerCount">Players: 0</span>
+            </div>
+            <div class="controls-info">
+                <span>🎮 Move: WASD/↑↓←→ or Click | Quick Cards: 1-8 Keys</span>
+            </div>
+
+            <div id="storySection" class="story-section">
+                <div class="current-story">
+                    <h3>Current Story: <span id="storyDisplayName">Not set</span></h3>
                 </div>
-                <div class="controls-info">
-                    <span>🎮 Move: WASD/↑↓←→ or Click | Quick Cards: 1-8 Keys</span>
-                </div>
-                <div id="gameMasterControls" class="master-controls hidden">
-                    <button id="revealBtn" class="control-btn">Reveal Cards</button>
-                    <button id="resetBtn" class="control-btn">New Round</button>
+                <div id="gmStoryControls" class="gm-story-controls hidden">
+                    <input type="text" id="storyInput" placeholder="Enter story name/ticket ID">
+                    <button id="setStoryBtn" class="small-btn">Set Story</button>
                 </div>
             </div>
 
-            <div class="game-container">
-                <canvas id="gameCanvas" width="1200" height="600"></canvas>
-                
-                <div class="card-selector">
-                    <div class="card-options">
-                        <div class="card" data-value="1">1</div>
-                        <div class="card" data-value="2">2</div>
-                        <div class="card" data-value="3">3</div>
-                        <div class="card" data-value="5">5</div>
-                        <div class="card" data-value="8">8</div>
-                        <div class="card" data-value="13">13</div>
-                        <div class="card" data-value="21">21</div>
-                        <div class="card" data-value="?">?</div>
-                        <div class="card" data-value="☕">☕</div>
+            <div id="summarySection" class="summary-section hidden">
+                <h3>Round Summary</h3>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Average:</span>
+                        <span id="avgScore" class="stat-value">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Agreement:</span>
+                        <span id="agreementLevel" class="stat-value">-</span>
                     </div>
                 </div>
+            </div>
+            <div id="gameMasterControls" class="master-controls hidden">
+                <button id="revealBtn" class="control-btn">Reveal Cards</button>
+                <button id="resetBtn" class="control-btn">New Round</button>
+            </div>
+        </div>
 
-                <div class="action-bar">
-                    <button class="action-btn" data-action="wave">👋 Wave</button>
-                    <button class="action-btn" data-action="dance">🕺 Dance</button>
-                    <button class="action-btn" data-action="jump">🦘 Jump</button>
-                    <button class="action-btn" data-action="laugh">😂 Laugh</button>
-                    <button class="action-btn" data-action="think">🤔 Think</button>
-                    <div class="separator"></div>
-                    <button class="throw-btn" data-item="tomato">🍅</button>
-                    <button class="throw-btn" data-item="confetti">🎉</button>
-                    <button class="throw-btn" data-item="ball">⚽</button>
-                    <button class="throw-btn" data-item="paper">📄</button>
+        <div class="game-layout">
+            <div class="game-main">
+                <div class="game-container">
+                    <canvas id="gameCanvas" width="1200" height="600"></canvas>
+
+                    <div class="card-selector">
+                        <div class="card-options">
+                            <div class="card" data-value="1">1</div>
+                            <div class="card" data-value="2">2</div>
+                            <div class="card" data-value="3">3</div>
+                            <div class="card" data-value="5">5</div>
+                            <div class="card" data-value="8">8</div>
+                            <div class="card" data-value="13">13</div>
+                            <div class="card" data-value="21">21</div>
+                            <div class="card" data-value="?">?</div>
+                            <div class="card" data-value="☕">☕</div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <button class="action-btn" data-action="wave">👋 Wave</button>
+                        <button class="action-btn" data-action="dance">🕺 Dance</button>
+                        <button class="action-btn" data-action="jump">🦘 Jump</button>
+                        <button class="action-btn" data-action="laugh">😂 Laugh</button>
+                        <button class="action-btn" data-action="think">🤔 Think</button>
+                        <div class="separator"></div>
+                        <button class="throw-btn" data-item="tomato">🍅</button>
+                        <button class="throw-btn" data-item="confetti">🎉</button>
+                        <button class="throw-btn" data-item="ball">⚽</button>
+                        <button class="throw-btn" data-item="paper">📄</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-pane" id="sidePane">
+                <div class="side-pane-header">
+                    <h2>Players</h2>
+                </div>
+                <div id="playerList" class="player-list">
+                    <!-- Players will be added here dynamically -->
+                </div>
+
+                <div class="chat-section">
+                    <div class="chat-header">
+                        <h3>Chat</h3>
+                    </div>
+                    <div id="chatMessages" class="chat-messages">
+                        <!-- Messages will be added here -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Type a message...">
+                        <button id="sendChatBtn">🚀</button>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="game.js"></script>
 </body>
+
 </html>
