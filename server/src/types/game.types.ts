@@ -16,6 +16,15 @@ export interface Room {
   cardsRevealed: boolean;
   currentStory?: string;
   throwables: Throwable[];
+  messages: ChatMessage[];
+}
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  text: string;
+  timestamp: number;
 }
 
 export interface Throwable {

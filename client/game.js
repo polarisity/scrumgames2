@@ -12,7 +12,7 @@ class ScrumPokerGame {
         this.animations = new Map();
         this.mousePos = { x: 0, y: 0 };
         this.selectedAvatar = null;
-        
+
         // Keyboard movement state
         this.keys = {
             up: false,
@@ -23,7 +23,7 @@ class ScrumPokerGame {
         this.moveSpeed = 5;
         this.lastMoveTime = 0;
         this.moveInterval = 50; // milliseconds between movement updates
-        
+
         this.init();
     }
 
@@ -31,6 +31,7 @@ class ScrumPokerGame {
         this.setupEventListeners();
         this.setupCanvasEvents();
         this.setupKeyboardControls();
+        this.checkURLParameters();
         this.startGameLoop();
     }
 
@@ -133,6 +134,37 @@ class ScrumPokerGame {
             document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
             this.selectedCard = null;
         });
+
+        // Copy link button
+        document.getElementById('copyLinkBtn').addEventListener('click', () => {
+            this.copyRoomLink();
+        });
+
+        // Story management
+        document.getElementById('setStoryBtn').addEventListener('click', () => {
+            const story = document.getElementById('storyInput').value.trim();
+            if (story) {
+                this.socket.emit('updateStory', story);
+                document.getElementById('storyInput').value = '';
+            }
+        });
+
+        document.getElementById('storyInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('setStoryBtn').click();
+            }
+        });
+
+        // Chat
+        document.getElementById('sendChatBtn').addEventListener('click', () => {
+            this.sendChatMessage();
+        });
+
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.sendChatMessage();
+            }
+        });
     }
 
     setupKeyboardControls() {
@@ -140,10 +172,10 @@ class ScrumPokerGame {
         document.addEventListener('keydown', (e) => {
             // Prevent keyboard controls when typing in input fields
             if (e.target.tagName === 'INPUT') return;
-            
+
             let changed = false;
-            
-            switch(e.key.toLowerCase()) {
+
+            switch (e.key.toLowerCase()) {
                 case 'arrowup':
                 case 'w':
                     if (!this.keys.up) {
@@ -187,7 +219,7 @@ class ScrumPokerGame {
                     }
                     break;
             }
-            
+
             if (changed) {
                 this.updatePlayerMovement();
             }
@@ -196,8 +228,8 @@ class ScrumPokerGame {
         // Keyboard up events
         document.addEventListener('keyup', (e) => {
             if (e.target.tagName === 'INPUT') return;
-            
-            switch(e.key.toLowerCase()) {
+
+            switch (e.key.toLowerCase()) {
                 case 'arrowup':
                 case 'w':
                     this.keys.up = false;
@@ -220,17 +252,17 @@ class ScrumPokerGame {
 
     updatePlayerMovement() {
         if (!this.socket || !this.myId) return;
-        
+
         const now = Date.now();
         if (now - this.lastMoveTime < this.moveInterval) return;
-        
+
         const myPlayer = this.players.get(this.myId);
         if (!myPlayer) return;
-        
+
         let newX = myPlayer.x;
         let newY = myPlayer.y;
         let moved = false;
-        
+
         if (this.keys.up && !this.keys.down) {
             newY -= this.moveSpeed;
             moved = true;
@@ -247,11 +279,11 @@ class ScrumPokerGame {
             newX += this.moveSpeed;
             moved = true;
         }
-        
+
         // Keep player within canvas bounds
         newX = Math.max(30, Math.min(this.canvas.width - 30, newX));
         newY = Math.max(30, Math.min(this.canvas.height - 30, newY));
-        
+
         if (moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
             this.socket.emit('move', { x: newX, y: newY });
             this.lastMoveTime = now;
@@ -285,7 +317,7 @@ class ScrumPokerGame {
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
+
             // Move player to clicked position
             if (this.socket) {
                 this.socket.emit('move', { x, y });
@@ -297,7 +329,7 @@ class ScrumPokerGame {
         console.log('Creating room for player:', playerName, 'with avatar:', this.selectedAvatar);
         this.socket = io();
         this.setupSocketListeners();
-        
+
         this.socket.on('connect', () => {
             console.log('Connected, creating room...');
             this.socket.emit('createRoom', { playerName, avatar: this.selectedAvatar });
@@ -308,7 +340,7 @@ class ScrumPokerGame {
         console.log('Joining room:', roomCode, 'for player:', playerName, 'with avatar:', this.selectedAvatar);
         this.socket = io();
         this.setupSocketListeners();
-        
+
         this.socket.on('connect', () => {
             console.log('Connected, joining room...');
             this.socket.emit('joinRoom', { roomId: roomCode, playerName, avatar: this.selectedAvatar });
@@ -329,19 +361,41 @@ class ScrumPokerGame {
             state.players.forEach(player => {
                 this.players.set(player.id, player);
             });
-            
+
             this.cardsRevealed = state.cardsRevealed;
             this.throwables = state.throwables || [];
-            
+
             // Update UI
             document.getElementById('playerCount').textContent = `Players: ${state.players.length}`;
-            
+            this.updatePlayerList();
+
+            // Update story
+            if (state.currentStory) {
+                document.getElementById('storyDisplayName').textContent = state.currentStory;
+            } else {
+                document.getElementById('storyDisplayName').textContent = 'Not set';
+            }
+
+            // Update chat
+            if (state.messages) {
+                this.updateChatMessages(state.messages);
+            }
+
+            // Update summary
+            if (this.cardsRevealed) {
+                this.updateSummary(state.players);
+            } else {
+                document.getElementById('summarySection').classList.add('hidden');
+            }
+
             // Show/hide game master controls
             const myPlayer = this.players.get(this.myId);
             if (myPlayer?.isGameMaster) {
                 document.getElementById('gameMasterControls').classList.remove('hidden');
+                document.getElementById('gmStoryControls').classList.remove('hidden');
             } else {
                 document.getElementById('gameMasterControls').classList.add('hidden');
+                document.getElementById('gmStoryControls').classList.add('hidden');
             }
         });
 
@@ -376,6 +430,150 @@ class ScrumPokerGame {
     showGameScreen() {
         document.getElementById('loginScreen').classList.remove('active');
         document.getElementById('gameScreen').classList.add('active');
+        this.updatePlayerList();
+    }
+
+    updatePlayerList() {
+        const playerListElement = document.getElementById('playerList');
+        if (!playerListElement) return;
+
+        playerListElement.innerHTML = '';
+
+        // Sort players: me first, then by name
+        const sortedPlayers = Array.from(this.players.values()).sort((a, b) => {
+            if (a.id === this.myId) return -1;
+            if (b.id === this.myId) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        sortedPlayers.forEach(player => {
+            const playerItem = document.createElement('div');
+            playerItem.className = `player-list-item${player.id === this.myId ? ' is-me' : ''}`;
+
+            let cardStatus = '';
+            if (player.card !== undefined) {
+                if (this.cardsRevealed) {
+                    cardStatus = `<div class="player-card-value">${player.card}</div>`;
+                } else {
+                    cardStatus = `<div class="player-card-hidden">?</div>`;
+                }
+            } else {
+                cardStatus = `<div class="player-card-empty"></div>`;
+            }
+
+            playerItem.innerHTML = `
+                <div class="player-avatar">${player.avatar}</div>
+                <div class="player-details">
+                    <div class="player-name">
+                        ${player.name}
+                        ${player.isGameMaster ? '<span class="gm-badge" title="Game Master">👑</span>' : ''}
+                    </div>
+                    <div class="player-status">
+                        ${player.card !== undefined ? 'Selected' : 'Choosing...'}
+                    </div>
+                </div>
+                <div class="player-card-container">
+                    ${cardStatus}
+                </div>
+            `;
+
+            playerListElement.appendChild(playerItem);
+        });
+    }
+
+    checkURLParameters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        if (roomCode) {
+            const roomInput = document.getElementById('roomCode');
+            if (roomInput) {
+                roomInput.value = roomCode.toUpperCase();
+            }
+        }
+    }
+
+    async copyRoomLink() {
+        if (!this.roomId) return;
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('room', this.roomId);
+        const shareUrl = url.toString();
+
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            const btn = document.getElementById('copyLinkBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✅ Copied!';
+            btn.classList.add('success');
+
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('success');
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy link to clipboard');
+        }
+    }
+
+    sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (text && this.socket) {
+            this.socket.emit('sendMessage', text);
+            input.value = '';
+        }
+    }
+
+    updateChatMessages(messages) {
+        const container = document.getElementById('chatMessages');
+        if (!container) return;
+
+        // Only update if number of messages changed
+        if (container.children.length === messages.length) return;
+
+        container.innerHTML = '';
+        messages.forEach(msg => {
+            const msgEl = document.createElement('div');
+            msgEl.className = `chat-message${msg.playerId === this.myId ? ' is-me' : ''}`;
+            msgEl.innerHTML = `
+                <div class="msg-author">${msg.playerName}</div>
+                <div class="msg-text">${this.escapeHtml(msg.text)}</div>
+            `;
+            container.appendChild(msgEl);
+        });
+
+        container.scrollTop = container.scrollHeight;
+    }
+
+    updateSummary(players) {
+        const votes = players
+            .filter(p => p.card !== undefined && p.card !== '?' && p.card !== '☕')
+            .map(p => {
+                const val = parseFloat(p.card);
+                return isNaN(val) ? null : val;
+            })
+            .filter(v => v !== null);
+
+        if (votes.length > 0) {
+            const sum = votes.reduce((a, b) => a + b, 0);
+            const avg = (sum / votes.length).toFixed(1);
+            document.getElementById('avgScore').textContent = avg;
+
+            // Simple agreement check: are all votes the same?
+            const allSame = votes.every(v => v === votes[0]);
+            document.getElementById('agreementLevel').textContent = allSame ? 'High (Unanimous)' : 'Mixed';
+
+            document.getElementById('summarySection').classList.remove('hidden');
+        } else {
+            document.getElementById('summarySection').classList.add('hidden');
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     throwItem(itemType) {
@@ -441,15 +639,15 @@ class ScrumPokerGame {
         if (this.keys.up || this.keys.down || this.keys.left || this.keys.right) {
             this.updatePlayerMovement();
         }
-        
+
         // Update throwable positions
         this.throwables.forEach(throwable => {
             const progress = (Date.now() - throwable.timestamp) / 1000; // seconds
             if (progress < 1) {
                 const t = progress;
                 throwable.currentX = throwable.x + (throwable.targetX - throwable.x) * t;
-                throwable.currentY = throwable.y + (throwable.targetY - throwable.y) * t - 
-                                    Math.sin(t * Math.PI) * 100; // Arc trajectory
+                throwable.currentY = throwable.y + (throwable.targetY - throwable.y) * t -
+                    Math.sin(t * Math.PI) * 100; // Arc trajectory
             } else {
                 throwable.currentX = throwable.targetX;
                 throwable.currentY = throwable.targetY;
@@ -483,7 +681,7 @@ class ScrumPokerGame {
 
         // Draw hover effects
         this.drawHoverEffects();
-        
+
         // Draw controls hint
         this.drawControlsHint();
     }
@@ -491,14 +689,14 @@ class ScrumPokerGame {
     drawGrid() {
         this.ctx.strokeStyle = '#f0f0f0';
         this.ctx.lineWidth = 1;
-        
+
         for (let x = 0; x < this.canvas.width; x += 50) {
             this.ctx.beginPath();
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.canvas.height);
             this.ctx.stroke();
         }
-        
+
         for (let y = 0; y < this.canvas.height; y += 50) {
             this.ctx.beginPath();
             this.ctx.moveTo(0, y);
@@ -515,7 +713,7 @@ class ScrumPokerGame {
         const animation = this.animations.get(player.id);
         if (animation) {
             const progress = (Date.now() - animation.startTime) / animation.duration;
-            
+
             switch (animation.type) {
                 case 'jump':
                     y -= Math.sin(progress * Math.PI) * 30;
@@ -563,7 +761,7 @@ class ScrumPokerGame {
         // Draw card
         if (player.card !== undefined) {
             const cardY = y - 70;
-            
+
             if (this.cardsRevealed) {
                 // Show card value
                 this.ctx.fillStyle = 'white';
@@ -571,7 +769,7 @@ class ScrumPokerGame {
                 this.ctx.strokeStyle = '#667eea';
                 this.ctx.lineWidth = 2;
                 this.ctx.strokeRect(x - 20, cardY - 15, 40, 30);
-                
+
                 this.ctx.fillStyle = '#667eea';
                 this.ctx.font = 'bold 18px Arial';
                 this.ctx.fillText(player.card, x, cardY);
@@ -611,19 +809,19 @@ class ScrumPokerGame {
         };
 
         const emoji = itemEmojis[throwable.type] || '❓';
-        
+
         this.ctx.save();
-        
+
         // Add rotation for fun
         const rotation = (Date.now() - throwable.timestamp) / 100;
         this.ctx.translate(throwable.currentX, throwable.currentY);
         this.ctx.rotate(rotation);
-        
+
         this.ctx.font = '30px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(emoji, 0, 0);
-        
+
         this.ctx.restore();
     }
 
