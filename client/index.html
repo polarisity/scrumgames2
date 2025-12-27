@@ -48,96 +48,105 @@
         </div>
 
         <div id="gameScreen" class="screen">
-            <div class="room-info">
-                <span>Room: <strong id="roomId"></strong></span>
-                <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
-                <span id="playerCount">Players: 0</span>
-            </div>
-            <div class="controls-info">
-                <span>🎮 Move: WASD/↑↓←→ or Click | Quick Cards: 1-8 Keys</span>
-            </div>
-
-            <div id="storySection" class="story-section">
-                <div class="current-story">
-                    <h3>Current Story: <span id="storyDisplayName">Not set</span></h3>
-                </div>
-                <div id="gmStoryControls" class="gm-story-controls hidden">
-                    <input type="text" id="storyInput" placeholder="Enter story name/ticket ID">
-                    <button id="setStoryBtn" class="small-btn">Set Story</button>
-                </div>
-            </div>
-
-            <div id="summarySection" class="summary-section hidden">
-                <h3>Round Summary</h3>
-                <div class="summary-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Average:</span>
-                        <span id="avgScore" class="stat-value">-</span>
+            <header class="game-header">
+                <div class="header-left">
+                    <div class="room-info">
+                        <span class="room-label">Room: <strong id="roomId"></strong></span>
+                        <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Agreement:</span>
-                        <span id="agreementLevel" class="stat-value">-</span>
-                    </div>
-                </div>
-            </div>
-            <div id="gameMasterControls" class="master-controls hidden">
-                <button id="revealBtn" class="control-btn">Reveal Cards</button>
-                <button id="resetBtn" class="control-btn">New Round</button>
-            </div>
-        </div>
-
-        <div class="game-layout">
-            <div class="game-main">
-                <div class="game-container">
-                    <canvas id="gameCanvas" width="1200" height="600"></canvas>
-
-                    <div class="card-selector">
-                        <div class="card-options">
-                            <div class="card" data-value="1">1</div>
-                            <div class="card" data-value="2">2</div>
-                            <div class="card" data-value="3">3</div>
-                            <div class="card" data-value="5">5</div>
-                            <div class="card" data-value="8">8</div>
-                            <div class="card" data-value="13">13</div>
-                            <div class="card" data-value="21">21</div>
-                            <div class="card" data-value="?">?</div>
-                            <div class="card" data-value="☕">☕</div>
+                    <div id="storySection" class="story-section">
+                        <div class="current-story">
+                            <span class="story-label">Story:</span> <span id="storyDisplayName">Not set</span>
+                        </div>
+                        <div id="gmStoryControls" class="gm-story-controls hidden">
+                            <input type="text" id="storyInput" placeholder="Set story...">
+                            <button id="setStoryBtn" class="small-btn">Update</button>
                         </div>
                     </div>
-
-                    <div class="action-bar">
-                        <button class="action-btn" data-action="wave">👋 Wave</button>
-                        <button class="action-btn" data-action="dance">🕺 Dance</button>
-                        <button class="action-btn" data-action="jump">🦘 Jump</button>
-                        <button class="action-btn" data-action="laugh">😂 Laugh</button>
-                        <button class="action-btn" data-action="think">🤔 Think</button>
-                        <div class="separator"></div>
-                        <button class="throw-btn" data-item="tomato">🍅</button>
-                        <button class="throw-btn" data-item="confetti">🎉</button>
-                        <button class="throw-btn" data-item="ball">⚽</button>
-                        <button class="throw-btn" data-item="paper">📄</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="side-pane" id="sidePane">
-                <div class="side-pane-header">
-                    <h2>Players</h2>
-                </div>
-                <div id="playerList" class="player-list">
-                    <!-- Players will be added here dynamically -->
                 </div>
 
-                <div class="chat-section">
-                    <div class="chat-header">
-                        <h3>Chat</h3>
+                <div class="header-center">
+                    <div id="summarySection" class="summary-section hidden">
+                        <div class="summary-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">AVG:</span>
+                                <span id="avgScore" class="stat-value">-</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">AGREEMENT:</span>
+                                <span id="agreementLevel" class="stat-value">-</span>
+                            </div>
+                        </div>
                     </div>
-                    <div id="chatMessages" class="chat-messages">
-                        <!-- Messages will be added here -->
+                </div>
+
+                <div class="header-right">
+                    <span id="playerCount" class="badge">Players: 0</span>
+                    <div id="gameMasterControls" class="master-controls hidden">
+                        <button id="revealBtn" class="control-btn reveal-btn">Reveal</button>
+                        <button id="resetBtn" class="control-btn reset-btn">Reset</button>
                     </div>
-                    <div class="chat-input-area">
-                        <input type="text" id="chatInput" placeholder="Type a message...">
-                        <button id="sendChatBtn">🚀</button>
+                </div>
+            </header>
+
+            <div class="game-layout">
+                <div class="game-main">
+                    <div class="game-container">
+                        <div class="controls-hint">
+                            <span>🎮 WASD/Arrows | Quick Cards: 1-8</span>
+                        </div>
+                        <canvas id="gameCanvas" width="1200" height="600"></canvas>
+
+                        <div class="card-selector">
+                            <div class="card-options">
+                                <div class="card" data-value="1">1</div>
+                                <div class="card" data-value="2">2</div>
+                                <div class="card" data-value="3">3</div>
+                                <div class="card" data-value="5">5</div>
+                                <div class="card" data-value="8">8</div>
+                                <div class="card" data-value="13">13</div>
+                                <div class="card" data-value="21">21</div>
+                                <div class="card" data-value="?">?</div>
+                                <div class="card" data-value="☕">☕</div>
+                            </div>
+                        </div>
+
+                        <div class="action-bar-container">
+                            <div class="action-bar">
+                                <button class="action-btn" data-action="wave" title="Wave">👋</button>
+                                <button class="action-btn" data-action="dance" title="Dance">🕺</button>
+                                <button class="action-btn" data-action="jump" title="Jump">🦘</button>
+                                <button class="action-btn" data-action="laugh" title="Laugh">😂</button>
+                                <button class="action-btn" data-action="think" title="Think">🤔</button>
+                                <div class="separator"></div>
+                                <button class="throw-btn" data-item="tomato" title="Throw Tomato">🍅</button>
+                                <button class="throw-btn" data-item="confetti" title="Confetti">🎉</button>
+                                <button class="throw-btn" data-item="ball" title="Throw Ball">⚽</button>
+                                <button class="throw-btn" data-item="paper" title="Throw Paper">📄</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="side-pane" id="sidePane">
+                    <div class="side-pane-header">
+                        <h2>Players</h2>
+                    </div>
+                    <div id="playerList" class="player-list">
+                        <!-- Players will be added here dynamically -->
+                    </div>
+
+                    <div class="chat-section">
+                        <div class="chat-header">
+                            <h3>Chat</h3>
+                        </div>
+                        <div id="chatMessages" class="chat-messages">
+                            <!-- Messages will be added here -->
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chatInput" placeholder="Message...">
+                            <button id="sendChatBtn">🚀</button>
+                        </div>
                     </div>
                 </div>
             </div>
