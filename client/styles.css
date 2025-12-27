@@ -275,28 +275,63 @@ body {
     width: 120px;
 }
 
-/* Summary Section in Header */
+/* Summary Section as a floating overlay */
+#summarySection.summary-section {
+    position: absolute;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    pointer-events: none;
+    /* Let clicks pass through to game if needed */
+}
+
 .summary-stats {
     display: flex;
-    gap: 1.5rem;
+    gap: 2rem;
+    background: rgba(108, 92, 231, 0.15);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    padding: 1rem 2rem;
+    border-radius: 16px;
+    border: 1px solid rgba(108, 92, 231, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(108, 92, 231, 0.2);
+    animation: slideDownFade 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .stat-item {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 }
 
 .stat-label {
     font-size: 0.7rem;
-    color: #fd79a8;
-    font-weight: 700;
+    color: #a29bfe;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
 }
 
 .stat-value {
-    font-size: 1rem;
-    font-weight: 700;
+    font-size: 1.8rem;
+    font-weight: 800;
     color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+@keyframes slideDownFade {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Header Right */

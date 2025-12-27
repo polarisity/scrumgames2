@@ -52,6 +52,7 @@
                 <div class="header-left">
                     <div class="room-info">
                         <span class="room-label">Room: <strong id="roomId"></strong></span>
+                        <span id="playerCount" class="badge">Players: 0</span>
                         <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
                     </div>
                     <div id="storySection" class="story-section">
@@ -66,22 +67,9 @@
                 </div>
 
                 <div class="header-center">
-                    <div id="summarySection" class="summary-section hidden">
-                        <div class="summary-stats">
-                            <div class="stat-item">
-                                <span class="stat-label">AVG:</span>
-                                <span id="avgScore" class="stat-value">-</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">AGREEMENT:</span>
-                                <span id="agreementLevel" class="stat-value">-</span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="header-right">
-                    <span id="playerCount" class="badge">Players: 0</span>
                     <div id="gameMasterControls" class="master-controls hidden">
                         <button id="revealBtn" class="control-btn reveal-btn">Reveal</button>
                         <button id="resetBtn" class="control-btn reset-btn">Reset</button>
@@ -96,6 +84,19 @@
                             <span>🎮 WASD/Arrows | Quick Cards: 1-8</span>
                         </div>
                         <canvas id="gameCanvas" width="1200" height="600"></canvas>
+
+                        <div id="summarySection" class="summary-section hidden">
+                            <div class="summary-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Average</span>
+                                    <span id="avgScore" class="stat-value">-</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Agreement</span>
+                                    <span id="agreementLevel" class="stat-value">-</span>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="card-selector">
                             <div class="card-options">
@@ -130,7 +131,7 @@
 
                 <div class="side-pane" id="sidePane">
                     <div class="side-pane-header">
-                        <h2>Players</h2>
+                        <h2 id="playerListTitle">Players</h2>
                     </div>
                     <div id="playerList" class="player-list">
                         <!-- Players will be added here dynamically -->
