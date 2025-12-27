@@ -208,7 +208,8 @@ export class SocketHandler {
         players: Array.from(room.players.values()),
         cardsRevealed: room.cardsRevealed,
         currentStory: room.currentStory,
-        throwables: room.throwables
+        throwables: room.throwables,
+        messages: room.messages
       };
       this.io.to(roomId).emit('roomState', state);
     }
