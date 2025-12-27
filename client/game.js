@@ -370,7 +370,9 @@ class ScrumPokerGame {
             this.throwables = state.throwables || [];
 
             // Update UI
-            document.getElementById('playerCount').textContent = `Players: ${state.players.length}`;
+            const playerCount = state.players.length;
+            document.getElementById('playerCount').textContent = `Players: ${playerCount}`;
+            document.getElementById('playerListTitle').textContent = `Players (${playerCount})`;
             this.updatePlayerList();
 
             // Update story
