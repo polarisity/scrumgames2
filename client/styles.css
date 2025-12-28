@@ -44,8 +44,8 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     text-align: center;
-    max-width: 500px;
-    width: 90%;
+    max-width: 1120px;
+    width: 95%;
     color: white;
 }
 
@@ -76,7 +76,7 @@ body {
 }
 
 .avatar-selector h3 {
-    color: #333;
+    color: #a29bfe;
     margin-bottom: 1rem;
     font-size: 1.1rem;
 }
@@ -84,8 +84,9 @@ body {
 .avatar-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    gap: 10px;
-    margin-bottom: 1.5rem;
+    gap: 15px;
+    margin-bottom: 2rem;
+    justify-items: center;
 }
 
 .avatar-option {
@@ -144,13 +145,14 @@ body {
 }
 
 .secondary-btn {
-    background: #4CAF50;
+    background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
     color: white;
 }
 
 .secondary-btn:hover {
-    background: #45a049;
+    background: linear-gradient(135deg, #00cec9 0%, #00b894 100%);
     transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 184, 148, 0.3);
 }
 
 .or-divider {
@@ -691,6 +693,27 @@ body {
     color: white;
     outline: none;
     font-size: 0.85rem;
+}
+
+#sendChatBtn {
+    background: none;
+    border: none;
+    color: #6c5ce7;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    transition: transform 0.2s, color 0.2s;
+}
+
+#sendChatBtn:hover {
+    color: #a29bfe;
+    transform: scale(1.1);
+}
+
+#sendChatBtn .material-icons {
+    font-size: 20px;
 }
 
 /* Responsive adjustments */

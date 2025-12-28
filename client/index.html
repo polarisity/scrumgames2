@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scrum Poker - Fun Estimation Game</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 
 <body>
@@ -19,20 +20,22 @@
                 <div class="avatar-selector">
                     <h3>Choose your avatar:</h3>
                     <div class="avatar-grid">
-                        <div class="avatar-grid">
-                            <div class="avatar-option" data-avatar="hero" title="Knight">🛡️</div>
-                            <div class="avatar-option" data-avatar="mage" title="Wizard">🧙</div>
-                            <div class="avatar-option" data-avatar="rogue" title="Rogue">🗡️</div>
-                            <div class="avatar-option" data-avatar="goblin" title="Goblin">👹</div>
-                        </div>
+                        <div class="avatar-option" data-avatar="cat" title="Cat">🐱</div>
+                        <div class="avatar-option" data-avatar="dog" title="Dog">🐶</div>
+                        <div class="avatar-option" data-avatar="rabbit" title="Rabbit">🐰</div>
+                        <div class="avatar-option" data-avatar="panda" title="Panda">🐼</div>
+                        <div class="avatar-option" data-avatar="fox" title="Fox">🦊</div>
+                        <div class="avatar-option" data-avatar="bear" title="Bear">🐻</div>
+                        <div class="avatar-option" data-avatar="koala" title="Koala">🐨</div>
+                        <div class="avatar-option" data-avatar="lion" title="Lion">🦁</div>
                     </div>
                 </div>
 
                 <div class="button-group">
-                    <button id="createRoomBtn" class="primary-btn">Create New Room</button>
-                    <div class="or-divider">OR</div>
                     <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6">
-                    <button id="joinRoomBtn" class="secondary-btn">Join Room</button>
+                    <button id="joinRoomBtn" class="primary-btn">Join Room</button>
+                    <div class="or-divider">OR</div>
+                    <button id="createRoomBtn" class="secondary-btn">Create New Room</button>
                 </div>
             </div>
         </div>
@@ -42,7 +45,7 @@
                 <div class="header-left">
                     <div class="room-info">
                         <span class="room-label">Room: <strong id="roomId"></strong></span>
-                        <span id="playerCount" class="badge">Players: 0</span>
+                        <!-- <span id="playerCount" class="badge">Players: 0</span> -->
                         <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
                     </div>
                     <div id="storySection" class="story-section">
@@ -136,7 +139,7 @@
                         </div>
                         <div class="chat-input-area">
                             <input type="text" id="chatInput" placeholder="Message...">
-                            <button id="sendChatBtn">🚀</button>
+                            <button id="sendChatBtn"><i class="material-icons">send</i></button>
                         </div>
                     </div>
                 </div>
