@@ -20,9 +20,7 @@ export class RoomService {
   }
 
   getRoom(roomId: string): Room | undefined {
-    const room = this.rooms.get(roomId);
-    console.log(`Getting room ${roomId}: ${room ? 'found' : 'not found'}`);
-    return room;
+    return this.rooms.get(roomId);
   }
 
   addPlayer(roomId: string, player: Player): boolean {

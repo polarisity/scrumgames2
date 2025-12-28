@@ -12,6 +12,7 @@ class ScrumPokerGame {
         this.animations = new Map();
         this.mousePos = { x: 0, y: 0 };
         this.selectedAvatar = null;
+        this.backgroundPattern = null;
 
         // Keyboard movement state
         this.keys = {
@@ -20,19 +21,112 @@ class ScrumPokerGame {
             left: false,
             right: false
         };
-        this.moveSpeed = 5;
+        this.moveSpeed = 8;
         this.lastMoveTime = 0;
         this.moveInterval = 50; // milliseconds between movement updates
+
+        // Asset management
+        this.assets = {
+            spritesheet: new Image()
+        };
+        // Sprite configuration for 4x2 grid
+        this.spriteConfig = {
+            cat: { col: 0, row: 0, emoji: '🐱' },
+            dog: { col: 1, row: 0, emoji: '🐶' },
+            rabbit: { col: 2, row: 0, emoji: '🐰' },
+            panda: { col: 3, row: 0, emoji: '🐼' },
+            fox: { col: 0, row: 1, emoji: '🦊' },
+            bear: { col: 1, row: 1, emoji: '🐻' },
+            koala: { col: 2, row: 1, emoji: '🐨' },
+            lion: { col: 3, row: 1, emoji: '🦁' }
+        };
 
         this.init();
     }
 
+    async generateEmojiSpritesheet() {
+        const spriteSize = 64;
+        const cols = 4;
+        const rows = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = spriteSize * cols;
+        canvas.height = spriteSize * rows;
+        const ctx = canvas.getContext('2d');
+
+        // Style the emojis for a consistent look
+        ctx.font = `${spriteSize * 0.8}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        Object.entries(this.spriteConfig).forEach(([name, config]) => {
+            const x = config.col * spriteSize + spriteSize / 2;
+            const y = config.row * spriteSize + spriteSize / 2;
+            ctx.fillText(config.emoji, x, y);
+        });
+
+        // Optional: Apply a simple pixelation or filtering effect here if desired
+        // For now, we use the raw emojis as a clean basis
+
+        this.assets.spritesheet = new Image();
+        this.assets.spritesheet.onload = () => {
+            this.updateAvatarSelectionUI();
+        };
+        this.assets.spritesheet.src = canvas.toDataURL();
+    }
+
+    processSpritesheet() {
+        // Obsolete with dynamic generation, but keeping structure for compatibility
+        this.generateEmojiSpritesheet();
+    }
+
+    updateAvatarSelectionUI() {
+        const options = document.querySelectorAll('.avatar-option');
+        options.forEach(option => {
+            const avatarName = option.dataset.avatar;
+            const containerId = `avatar-choice-${avatarName}`;
+            option.id = containerId;
+            option.innerHTML = ''; // Clear the emoji
+            this.drawAvatarIcon(avatarName, containerId);
+        });
+    }
+
     init() {
+        this.generateEmojiSpritesheet();
+        this.generateGrassTile();
         this.setupEventListeners();
         this.setupCanvasEvents();
         this.setupKeyboardControls();
         this.checkURLParameters();
         this.startGameLoop();
+    }
+
+    generateGrassTile() {
+        const tileSize = 64;
+        const canvas = document.createElement('canvas');
+        canvas.width = tileSize;
+        canvas.height = tileSize;
+        const ctx = canvas.getContext('2d');
+
+        // Base grass color
+        ctx.fillStyle = '#27ae60';
+        ctx.fillRect(0, 0, tileSize, tileSize);
+
+        // Add some "blades" and texture
+        ctx.fillStyle = '#2ecc71'; // Lighter green
+        for (let i = 0; i < 40; i++) {
+            const x = Math.random() * tileSize;
+            const y = Math.random() * tileSize;
+            ctx.fillRect(x, y, 2, 4);
+        }
+
+        ctx.fillStyle = '#1e8449'; // Darker green
+        for (let i = 0; i < 20; i++) {
+            const x = Math.random() * tileSize;
+            const y = Math.random() * tileSize;
+            ctx.fillRect(x, y, 2, 2);
+        }
+
+        this.backgroundPattern = this.ctx.createPattern(canvas, 'repeat');
     }
 
     setupEventListeners() {
@@ -281,10 +375,21 @@ class ScrumPokerGame {
         }
 
         // Keep player within canvas bounds
-        newX = Math.max(30, Math.min(this.canvas.width - 30, newX));
-        newY = Math.max(30, Math.min(this.canvas.height - 30, newY));
+        newX = Math.max(20, Math.min(this.canvas.width - 20, newX));
+        newY = Math.max(20, Math.min(this.canvas.height - 20, newY));
 
-        if (moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
+        // Collision detection with other players
+        let collision = false;
+        this.players.forEach((player, id) => {
+            if (id !== this.myId) {
+                const dist = Math.hypot(newX - player.x, newY - player.y);
+                if (dist < 40) { // Solid radius
+                    collision = true;
+                }
+            }
+        });
+
+        if (!collision && moved && (newX !== myPlayer.x || newY !== myPlayer.y)) {
             this.socket.emit('move', { x: newX, y: newY });
             this.lastMoveTime = now;
         }
@@ -318,10 +423,7 @@ class ScrumPokerGame {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            // Move player to clicked position
-            if (this.socket) {
-                this.socket.emit('move', { x, y });
-            }
+            // Mouse click movement removed per user request
         });
     }
 
@@ -361,6 +463,18 @@ class ScrumPokerGame {
         });
 
         this.socket.on('roomState', (state) => {
+            // Track movement status for animation
+            state.players.forEach(player => {
+                const existing = this.players.get(player.id);
+                if (existing) {
+                    player.isMoving = (player.x !== existing.x || player.y !== existing.y);
+                    player.lastMoveDetected = player.isMoving ? Date.now() : existing.lastMoveDetected;
+                } else {
+                    player.isMoving = false;
+                    player.lastMoveDetected = 0;
+                }
+            });
+
             this.players.clear();
             state.players.forEach(player => {
                 this.players.set(player.id, player);
@@ -371,7 +485,7 @@ class ScrumPokerGame {
 
             // Update UI
             const playerCount = state.players.length;
-            document.getElementById('playerCount').textContent = `Players: ${playerCount}`;
+            // document.getElementById('playerCount').textContent = `Players: ${playerCount}`;
             document.getElementById('playerListTitle').textContent = `Players (${playerCount})`;
             this.updatePlayerList();
 
@@ -446,6 +560,34 @@ class ScrumPokerGame {
         }
     }
 
+    drawAvatarIcon(avatarName, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container || !this.assets.spritesheet.complete) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        const config = this.spriteConfig[avatarName] || this.spriteConfig.cat;
+        const cols = 4;
+        const rows = 2;
+        const frameWidth = this.assets.spritesheet.width / cols;
+        const frameHeight = this.assets.spritesheet.height / rows;
+
+        const sourceX = config.col * frameWidth;
+        const sourceY = config.row * frameHeight;
+
+        ctx.drawImage(
+            this.assets.spritesheet,
+            sourceX, sourceY, frameWidth, frameHeight,
+            0, 0, 32, 32
+        );
+
+        container.appendChild(canvas);
+    }
+
     updatePlayerList() {
         const playerListElement = document.getElementById('playerList');
         if (!playerListElement) return;
@@ -474,8 +616,9 @@ class ScrumPokerGame {
                 cardStatus = `<div class="player-card-empty"></div>`;
             }
 
+            const avatarId = `avatar-list-${player.id}`;
             playerItem.innerHTML = `
-                <div class="player-avatar">${player.avatar}</div>
+                <div class="player-avatar" id="${avatarId}"></div>
                 <div class="player-details">
                     <div class="player-name">
                         ${player.name}
@@ -491,6 +634,7 @@ class ScrumPokerGame {
             `;
 
             playerListElement.appendChild(playerItem);
+            this.drawAvatarIcon(player.avatar, avatarId);
         });
     }
 
@@ -679,11 +823,13 @@ class ScrumPokerGame {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw grid background
-        this.drawGrid();
+        // Draw lush grass background
+        this.drawBackground();
 
         // Draw players
-        this.players.forEach(player => {
+        // Sort players by Y coordinate for proper depth rendering
+        const sortedPlayers = Array.from(this.players.values()).sort((a, b) => a.y - b.y);
+        sortedPlayers.forEach(player => {
             this.drawPlayer(player);
         });
 
@@ -696,21 +842,29 @@ class ScrumPokerGame {
         this.drawHoverEffects();
 
         // Draw controls hint
-        this.drawControlsHint();
+        // this.drawControlsHint();
     }
 
-    drawGrid() {
-        this.ctx.strokeStyle = '#f0f0f0';
-        this.ctx.lineWidth = 1;
+    drawBackground() {
+        if (this.backgroundPattern) {
+            this.ctx.fillStyle = this.backgroundPattern;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        } else {
+            // Fallback base color
+            this.ctx.fillStyle = '#27ae60';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
 
-        for (let x = 0; x < this.canvas.width; x += 50) {
+        // Optional: Very subtle grid for placement reference
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        this.ctx.lineWidth = 1;
+        for (let x = 0; x < this.canvas.width; x += 100) {
             this.ctx.beginPath();
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.canvas.height);
             this.ctx.stroke();
         }
-
-        for (let y = 0; y < this.canvas.height; y += 50) {
+        for (let y = 0; y < this.canvas.height; y += 100) {
             this.ctx.beginPath();
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.canvas.width, y);
@@ -722,77 +876,103 @@ class ScrumPokerGame {
         let x = player.x;
         let y = player.y;
 
-        // Apply animation effects
+        // Apply movement animation (walking / bouncing)
+        const animationProgress = (Date.now() % 400) / 400; // 400ms cycle
+        let bounceY = 0;
+
+        // Determine if player is moving
+        let moving = false;
+        if (player.id === this.myId) {
+            moving = (this.keys.up || this.keys.down || this.keys.left || this.keys.right);
+        } else {
+            // If movement was detected in the last 200ms, keep animating
+            moving = player.isMoving || (Date.now() - (player.lastMoveDetected || 0) < 200);
+        }
+
+        if (moving) {
+            bounceY = Math.abs(Math.sin(animationProgress * Math.PI * 2)) * 10;
+        }
+
+        // Apply animation effects (actions like jump/dance)
         const animation = this.animations.get(player.id);
         if (animation) {
             const progress = (Date.now() - animation.startTime) / animation.duration;
-
             switch (animation.type) {
                 case 'jump':
-                    y -= Math.sin(progress * Math.PI) * 30;
+                    y -= Math.sin(progress * Math.PI) * 20;
                     break;
                 case 'dance':
-                    x += Math.sin(progress * Math.PI * 4) * 10;
-                    break;
-                case 'wave':
-                    // Handled in avatar drawing
+                    x += Math.sin(progress * Math.PI * 4) * 5;
                     break;
             }
         }
 
+        y -= bounceY;
+
         // Draw shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         this.ctx.beginPath();
-        this.ctx.ellipse(x, player.y + 40, 25, 10, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(x, player.y + 5, 15, 6, 0, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Draw player circle
-        this.ctx.fillStyle = player.color;
-        this.ctx.strokeStyle = player.id === this.myId ? '#333' : '#666';
-        this.ctx.lineWidth = player.id === this.myId ? 4 : 2;
-        this.ctx.beginPath();
-        this.ctx.arc(x, y, 30, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.stroke();
+        // Draw Sprite
+        if (this.assets.spritesheet.complete) {
+            const config = this.spriteConfig[player.avatar] || this.spriteConfig.cat;
 
-        // Draw avatar
-        this.ctx.font = '30px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(player.avatar, x, y);
+            // The spritesheet is a 4x2 grid
+            const cols = 4;
+            const rows = 2;
+            const frameWidth = this.assets.spritesheet.width / cols;
+            const frameHeight = this.assets.spritesheet.height / rows;
 
-        // Draw name
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.fillText(player.name, x, y + 50);
+            const sourceX = config.col * frameWidth;
+            const sourceY = config.row * frameHeight;
 
-        // Draw game master crown
-        if (player.isGameMaster) {
-            this.ctx.fillText('👑', x, y - 45);
+            this.ctx.drawImage(
+                this.assets.spritesheet,
+                sourceX, sourceY, frameWidth, frameHeight, // Source
+                x - 32, y - 60, 64, 64 // Destination (centered and scaled)
+            );
+        } else {
+            // Fallback to circle if assets not loaded
+            this.ctx.fillStyle = player.color || '#6c5ce7';
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, 20, 0, Math.PI * 2);
+            this.ctx.fill();
         }
 
-        // Draw card
+        // Draw name label above head
+        this.ctx.fillStyle = 'white';
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 3;
+        this.ctx.font = 'bold 14px Inter';
+        this.ctx.textAlign = 'center';
+
+        const labelY = y - 70;
+        this.ctx.strokeText(player.name, x, labelY);
+        this.ctx.fillText(player.name, x, labelY);
+
+        if (player.isGameMaster) {
+            this.ctx.fillText('👑', x, labelY - 20);
+        }
+
+        // Draw selection card
         if (player.card !== undefined) {
-            const cardY = y - 70;
+            const cardY = labelY - 40;
+            this.ctx.fillStyle = '#fffa65';
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 2;
+            this.ctx.fillRect(x - 15, cardY - 20, 30, 40);
+            this.ctx.strokeRect(x - 15, cardY - 20, 30, 40);
 
             if (this.cardsRevealed) {
-                // Show card value
-                this.ctx.fillStyle = 'white';
-                this.ctx.fillRect(x - 20, cardY - 15, 40, 30);
-                this.ctx.strokeStyle = '#667eea';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(x - 20, cardY - 15, 40, 30);
-
-                this.ctx.fillStyle = '#667eea';
-                this.ctx.font = 'bold 18px Arial';
-                this.ctx.fillText(player.card, x, cardY);
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = 'bold 16px Inter';
+                this.ctx.fillText(player.card, x, cardY + 5);
             } else {
-                // Show card back
-                this.ctx.fillStyle = '#667eea';
-                this.ctx.fillRect(x - 20, cardY - 15, 40, 30);
-                this.ctx.fillStyle = 'white';
-                this.ctx.font = '16px Arial';
-                this.ctx.fillText('?', x, cardY);
+                this.ctx.fillStyle = '#000';
+                this.ctx.font = 'bold 16px Inter';
+                this.ctx.fillText('?', x, cardY + 5);
             }
         }
 
@@ -839,27 +1019,16 @@ class ScrumPokerGame {
     }
 
     drawHoverEffects() {
-        // Draw line from player to mouse position when moving
-        const myPlayer = this.players.get(this.myId);
-        if (myPlayer && this.mousePos.x && this.mousePos.y) {
-            this.ctx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
-            this.ctx.lineWidth = 2;
-            this.ctx.setLineDash([5, 5]);
-            this.ctx.beginPath();
-            this.ctx.moveTo(myPlayer.x, myPlayer.y);
-            this.ctx.lineTo(this.mousePos.x, this.mousePos.y);
-            this.ctx.stroke();
-            this.ctx.setLineDash([]);
-        }
+        // Dotted line removed per user request
     }
 
-    drawControlsHint() {
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('Move: WASD/Arrow Keys or Click', 10, 20);
-        this.ctx.fillText('Quick Select: Number Keys 1-8', 10, 35);
-    }
+    // drawControlsHint() {
+    //     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    //     this.ctx.font = '12px Arial';
+    //     this.ctx.textAlign = 'left';
+    //     this.ctx.fillText('Move: WASD/Arrow Keys or Click', 10, 20);
+    //     this.ctx.fillText('Quick Select: Number Keys 1-8', 10, 35);
+    // }
 }
 
 // Initialize game when page loads
