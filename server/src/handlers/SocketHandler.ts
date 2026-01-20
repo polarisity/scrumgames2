@@ -3,6 +3,8 @@ import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
 import { Player, Throwable } from '../types/game.types';
+import { userService } from '../services/UserService';
+import { AuthenticatedSocket } from '../middleware/authMiddleware';
 
 export class SocketHandler {
   private roomService: RoomService;
@@ -12,21 +14,115 @@ export class SocketHandler {
     this.roomService = new RoomService();
   }
 
-  handleConnection(socket: Socket): void {
-    console.log(`Player connected: ${socket.id}`);
+  handleConnection(socket: AuthenticatedSocket): void {
+    console.log(`Player connected: ${socket.id}`, socket.firebaseUid ? `(Firebase UID: ${socket.firebaseUid})` : '(No Firebase auth)');
+
+    // Display name validation event
+    socket.on('checkDisplayName', async (displayName: string, callback: (result: { available: boolean }) => void) => {
+      try {
+        const available = await userService.isDisplayNameAvailable(displayName, socket.firebaseUid);
+        callback({ available });
+      } catch (error) {
+        console.error('Error checking display name:', error);
+        callback({ available: false });
+      }
+    });
+
+    // Create user profile event (for first-time users)
+    socket.on('createProfile', async (data: { displayName: string }, callback: (result: { success: boolean; error?: string }) => void) => {
+      if (!socket.firebaseUid) {
+        callback({ success: false, error: 'Not authenticated' });
+        return;
+      }
+
+      try {
+        const available = await userService.isDisplayNameAvailable(data.displayName, socket.firebaseUid);
+        if (!available) {
+          callback({ success: false, error: 'Display name is already taken' });
+          return;
+        }
+
+        // Create user profile with default avatar (anonymous users get default)
+        const defaultAvatars = ['cat', 'dog', 'rabbit', 'panda', 'fox', 'bear', 'koala', 'lion'];
+        const defaultAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+
+        await userService.createUser(socket.firebaseUid, data.displayName, defaultAvatar);
+        socket.userProfile = await userService.getUser(socket.firebaseUid);
+
+        callback({ success: true });
+      } catch (error: any) {
+        console.error('Error creating profile:', error);
+        callback({ success: false, error: error.message || 'Failed to create profile' });
+      }
+    });
+
+    // Update avatar event (registered users only)
+    socket.on('updateAvatar', async (avatar: string, callback: (result: { success: boolean; error?: string }) => void) => {
+      if (!socket.firebaseUid || !socket.userProfile) {
+        callback({ success: false, error: 'Not authenticated' });
+        return;
+      }
+
+      try {
+        await userService.updateAvatar(socket.firebaseUid, avatar);
+        socket.userProfile.avatar = avatar;
+        callback({ success: true });
+      } catch (error: any) {
+        console.error('Error updating avatar:', error);
+        callback({ success: false, error: error.message || 'Failed to update avatar' });
+      }
+    });
+
+    // Update display name event
+    socket.on('updateDisplayName', async (newDisplayName: string, callback: (result: { success: boolean; error?: string }) => void) => {
+      if (!socket.firebaseUid || !socket.userProfile) {
+        callback({ success: false, error: 'Not authenticated' });
+        return;
+      }
+
+      try {
+        await userService.updateDisplayName(socket.firebaseUid, newDisplayName);
+        socket.userProfile.displayName = newDisplayName;
+        callback({ success: true });
+      } catch (error: any) {
+        console.error('Error updating display name:', error);
+        callback({ success: false, error: error.message || 'Failed to update display name' });
+      }
+    });
 
     // Handle both old format (string) and new format (object with avatar)
-    socket.on('createRoom', (data: string | { playerName: string; avatar: string }) => {
-      const playerName = typeof data === 'string' ? data : data.playerName;
-      const avatar = typeof data === 'string' ? null : data.avatar;
+    socket.on('createRoom', (data: string | { playerName: string; avatar?: string; token?: string }) => {
+      let playerName: string;
+      let avatar: string | null;
+
+      // If user has a profile, use that
+      if (socket.userProfile) {
+        playerName = socket.userProfile.displayName;
+        avatar = socket.userProfile.avatar;
+      } else {
+        playerName = typeof data === 'string' ? data : data.playerName;
+        avatar = typeof data === 'string' ? null : (data.avatar || null);
+      }
 
       const roomId = this.roomService.createRoom();
       console.log(`Room created: ${roomId}`);
       this.handleJoinRoom(socket, roomId, playerName, avatar);
     });
 
-    socket.on('joinRoom', (data: { roomId: string; playerName: string; avatar?: string }) => {
-      console.log(`Player ${data.playerName} attempting to join room: ${data.roomId}`);
+    socket.on('joinRoom', (data: { roomId: string; playerName: string; avatar?: string; token?: string }) => {
+      let playerName: string;
+      let avatar: string | null;
+
+      // If user has a profile, use that
+      if (socket.userProfile) {
+        playerName = socket.userProfile.displayName;
+        avatar = socket.userProfile.avatar;
+      } else {
+        playerName = data.playerName;
+        avatar = data.avatar || null;
+      }
+
+      console.log(`Player ${playerName} attempting to join room: ${data.roomId}`);
 
       // Convert to uppercase to match what was created
       const upperRoomId = data.roomId.toUpperCase();
@@ -39,7 +135,7 @@ export class SocketHandler {
         return;
       }
 
-      this.handleJoinRoom(socket, upperRoomId, data.playerName, data.avatar || null);
+      this.handleJoinRoom(socket, upperRoomId, playerName, avatar);
     });
 
     socket.on('move', ({ x, y }: { x: number; y: number }) => {
@@ -58,13 +154,17 @@ export class SocketHandler {
       }
     });
 
-    socket.on('revealCards', () => {
+    socket.on('revealCards', async () => {
       const roomId = this.playerRoomMap.get(socket.id);
       if (roomId) {
         const room = this.roomService.getRoom(roomId);
         const player = room?.players.get(socket.id);
         if (player?.isGameMaster) {
           this.roomService.revealCards(roomId);
+
+          // Calculate and award points
+          await this.awardPoints(roomId);
+
           this.broadcastRoomState(roomId);
         }
       }
@@ -127,6 +227,16 @@ export class SocketHandler {
       }
     });
 
+    socket.on('transferHost', (newHostId: string) => {
+      const roomId = this.playerRoomMap.get(socket.id);
+      if (roomId) {
+        const success = this.roomService.transferHost(roomId, socket.id, newHostId);
+        if (success) {
+          this.broadcastRoomState(roomId);
+        }
+      }
+    });
+
     socket.on('sendMessage', (text: string) => {
       const roomId = this.playerRoomMap.get(socket.id);
       if (roomId) {
@@ -159,7 +269,7 @@ export class SocketHandler {
     });
   }
 
-  private handleJoinRoom(socket: Socket, roomId: string, playerName: string, selectedAvatar: string | null): void {
+  private handleJoinRoom(socket: AuthenticatedSocket, roomId: string, playerName: string, selectedAvatar: string | null): void {
     // Make sure room exists
     let room = this.roomService.getRoom(roomId);
 
@@ -170,19 +280,25 @@ export class SocketHandler {
     }
 
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FD79A8'];
-    const defaultAvatars = ['🦊', '🐸', '🦁', '🐨', '🐵', '🦝', '🐻', '🐯'];
+    const defaultAvatars = ['cat', 'dog', 'rabbit', 'panda', 'fox', 'bear', 'koala', 'lion'];
 
     // Use the selected avatar or pick a random one
     const avatar = selectedAvatar || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
 
+    // Find a safe spawn position that doesn't overlap with existing players
+    const spawnPosition = this.roomService.findSafeSpawnPosition(roomId);
+
     const player: Player = {
       id: socket.id,
       name: playerName,
-      x: Math.random() * 600 + 100,
-      y: Math.random() * 400 + 100,
+      x: spawnPosition.x,
+      y: spawnPosition.y,
       avatar: avatar,
       isGameMaster: false,
-      color: colors[Math.floor(Math.random() * colors.length)]
+      color: colors[Math.floor(Math.random() * colors.length)],
+      firebaseUid: socket.firebaseUid,
+      points: socket.userProfile?.points || 0,
+      isRegistered: socket.userProfile?.isRegistered || false
     };
 
     const added = this.roomService.addPlayer(roomId, player);
@@ -195,10 +311,62 @@ export class SocketHandler {
     this.playerRoomMap.set(socket.id, roomId);
 
     socket.join(roomId);
-    socket.emit('roomJoined', { roomId, playerId: socket.id });
+    socket.emit('roomJoined', {
+      roomId,
+      playerId: socket.id,
+      userProfile: socket.userProfile || null
+    });
     console.log(`Player ${playerName} (${socket.id}) with avatar ${avatar} successfully joined room ${roomId}`);
 
     this.broadcastRoomState(roomId);
+  }
+
+  /**
+   * Award points to players after cards are revealed
+   * Points are only awarded when there are at least 3 players in the room
+   */
+  private async awardPoints(roomId: string): Promise<void> {
+    const room = this.roomService.getRoom(roomId);
+    if (!room) return;
+
+    // Only award points if there are at least 3 players in the room
+    if (room.players.size < 3) {
+      console.log(`Skipping points award for room ${roomId}: only ${room.players.size} players (minimum 3 required)`);
+      return;
+    }
+
+    // Collect votes from players
+    const votes = new Map<string, string>();
+    room.players.forEach((player, playerId) => {
+      if (player.card) {
+        votes.set(playerId, player.card);
+      }
+    });
+
+    // Calculate points
+    const pointsMap = userService.calculatePoints(votes);
+
+    // Award points to each player
+    const pointsAwarded: { playerId: string; points: number }[] = [];
+
+    for (const [playerId, points] of pointsMap) {
+      const player = room.players.get(playerId);
+      if (player && player.firebaseUid && points > 0) {
+        try {
+          const newTotal = await userService.addPoints(player.firebaseUid, points);
+          player.points = newTotal;
+          pointsAwarded.push({ playerId, points });
+          console.log(`Awarded ${points} points to player ${player.name} (total: ${newTotal})`);
+        } catch (error) {
+          console.error(`Failed to award points to player ${player.name}:`, error);
+        }
+      }
+    }
+
+    // Broadcast points awarded event
+    if (pointsAwarded.length > 0) {
+      this.io.to(roomId).emit('pointsAwarded', pointsAwarded);
+    }
   }
 
   private broadcastRoomState(roomId: string): void {

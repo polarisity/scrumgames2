@@ -8,6 +8,9 @@ export interface Player {
   isGameMaster: boolean;
   emoji?: string;
   color: string;
+  firebaseUid?: string;
+  points: number;
+  isRegistered: boolean;
 }
 
 export interface Room {

@@ -7,27 +7,44 @@
     <title>Scrum Poker - Fun Estimation Game</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 </head>
 
 <body>
     <div id="app">
-        <div id="loginScreen" class="screen active">
+        <!-- Loading Screen (shown while Firebase initializes) -->
+        <div id="loadingScreen" class="screen active">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Loading...</p>
+            </div>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen">
             <div class="login-container">
                 <h1>🎯 Scrum Poker Party</h1>
+                <!-- Welcome back message for registered users -->
+                <div id="welcomeBackSection" class="welcome-back hidden">
+                    <div class="user-info-card">
+                        <div class="user-avatar" id="welcomeAvatar"></div>
+                        <div class="user-details">
+                            <span class="user-name" id="welcomeName"></span>
+                            <span class="user-points"><span id="welcomePoints">0</span> points</span>
+                        </div>
+                    </div>
+                </div>
 
-                <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
-
-                <div class="avatar-selector">
-                    <h3>Choose your avatar:</h3>
-                    <div class="avatar-grid">
-                        <div class="avatar-option" data-avatar="cat" title="Cat">🐱</div>
-                        <div class="avatar-option" data-avatar="dog" title="Dog">🐶</div>
-                        <div class="avatar-option" data-avatar="rabbit" title="Rabbit">🐰</div>
-                        <div class="avatar-option" data-avatar="panda" title="Panda">🐼</div>
-                        <div class="avatar-option" data-avatar="fox" title="Fox">🦊</div>
-                        <div class="avatar-option" data-avatar="bear" title="Bear">🐻</div>
-                        <div class="avatar-option" data-avatar="koala" title="Koala">🐨</div>
-                        <div class="avatar-option" data-avatar="lion" title="Lion">🦁</div>
+                <!-- Name input for anonymous users -->
+                <div id="nameInputSection">
+                    <input type="text" id="playerName" placeholder="Enter your display name" maxlength="20">
+                    <div id="nameAvailability" class="name-availability"></div>
+                    <div class="auth-options" style="margin-top: 10px; text-align: center;">
+                        <button id="landingSignInBtn" class="text-btn" style="font-size: 0.9em;">Existing User? Sign
+                            In</button>
                     </div>
                 </div>
 
@@ -45,9 +62,11 @@
                 <div class="header-left">
                     <div class="room-info">
                         <span class="room-label">Room: <strong id="roomId"></strong></span>
-                        <!-- <span id="playerCount" class="badge">Players: 0</span> -->
                         <button id="copyLinkBtn" class="copy-btn" title="Copy Invitation Link">🔗 Copy Link</button>
                     </div>
+                </div>
+
+                <div class="header-center">
                     <div id="storySection" class="story-section">
                         <div class="current-story">
                             <span class="story-label">Story:</span> <span id="storyDisplayName">Not set</span>
@@ -57,17 +76,41 @@
                             <button id="setStoryBtn" class="small-btn">Update</button>
                         </div>
                     </div>
-                </div>
-
-                <div class="header-center">
-                </div>
-
-                <div class="header-right">
                     <div id="gameMasterControls" class="master-controls hidden">
                         <button id="revealBtn" class="control-btn reveal-btn">Reveal</button>
                         <button id="resetBtn" class="control-btn reset-btn">Reset</button>
                     </div>
                 </div>
+
+                <div class="header-right">
+                    <!-- User profile dropdown -->
+                    <div id="userProfileDropdown" class="user-profile-dropdown">
+                        <button id="profileBtn" class="profile-btn">
+                            <span id="profileAvatar" class="profile-avatar">👤</span>
+                            <span class="profile-info-group">
+                                <span id="profileName" class="profile-name">Guest</span>
+                                <span id="currentUserPoints" class="profile-points">0 pts</span>
+                            </span>
+                            <i class="material-icons">arrow_drop_down</i>
+                        </button>
+                        <div id="profileMenu" class="profile-menu hidden">
+                            <div class="profile-menu-header">
+                                <div class="profile-menu-header">
+                                    <span id="menuUserName">Guest</span>
+                                </div>
+                                <hr>
+                                <button id="editProfileBtn" class="menu-item">
+                                    <i class="material-icons">edit</i> Edit Profile
+                                </button>
+                                <button id="menuSignUpBtn" class="menu-item hidden">
+                                    <i class="material-icons">person_add</i> Sign Up
+                                </button>
+                                <button id="logoutBtn" class="menu-item hidden">
+                                    <i class="material-icons">logout</i> Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
             </header>
 
             <div class="game-layout">
@@ -89,6 +132,12 @@
                                     <span id="agreementLevel" class="stat-value">-</span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Points awarded notification -->
+                        <div id="pointsNotification" class="points-notification hidden">
+                            <span class="points-earned">+<span id="pointsEarnedValue">0</span></span>
+                            <span class="points-text">points earned!</span>
                         </div>
 
                         <div class="card-selector">
@@ -146,9 +195,72 @@
             </div>
         </div>
     </div>
+
+    <!-- Sign Up Modal -->
+    <div id="signUpModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Sign In / Sign Up</h2>
+                <button id="closeSignUpModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="signUpStep1" class="sign-up-step">
+                    <p>Enter your email to receive a one-time login link:</p>
+                    <p></p>
+                    <p>You will need to load the link in this browser</p>
+                    <input type="email" id="signUpEmail" placeholder="your@email.com">
+                    <button id="sendOTPBtn" class="primary-btn">Send Login Link</button>
+                </div>
+                <div id="signUpStep2" class="sign-up-step hidden">
+                    <div class="success-icon">✉️</div>
+                    <p>Check your email! We've sent you a login link.</p>
+                    <p class="email-sent-to">Sent to: <span id="sentEmailDisplay"></span></p>
+                    <button id="resendOTPBtn" class="text-btn">Resend email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <button id="closeEditProfileModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="editDisplayName">Display Name</label>
+                    <input type="text" id="editDisplayName" placeholder="Enter display name" maxlength="20">
+                    <div id="editNameAvailability" class="name-availability"></div>
+                </div>
+
+                <div id="editAvatarSection" class="form-group hidden">
+                    <label>Avatar</label>
+                    <div class="avatar-grid">
+                        <div class="avatar-option" data-avatar="cat" title="Cat">🐱</div>
+                        <div class="avatar-option" data-avatar="dog" title="Dog">🐶</div>
+                        <div class="avatar-option" data-avatar="rabbit" title="Rabbit">🐰</div>
+                        <div class="avatar-option" data-avatar="panda" title="Panda">🐼</div>
+                        <div class="avatar-option" data-avatar="fox" title="Fox">🦊</div>
+                        <div class="avatar-option" data-avatar="bear" title="Bear">🐻</div>
+                        <div class="avatar-option" data-avatar="koala" title="Koala">🐨</div>
+                        <div class="avatar-option" data-avatar="lion" title="Lion">🦁</div>
+                    </div>
+                </div>
+
+                <div id="editAvatarLocked" class="avatar-locked">
+                    <p>🔒 Feature requires login</p>
+                </div>
+
+                <button id="saveProfileBtn" class="primary-btn">Save Changes</button>
+            </div>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="firebase.config.js"></script>
+    <script src="authService.js"></script>
     <script src="game.js"></script>
 </body>
 
