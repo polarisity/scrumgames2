@@ -14,6 +14,13 @@ class ScrumPokerGame {
         this.selectedAvatar = null;
         this.backgroundPattern = null;
 
+        // Auth state
+        this.isAuthenticated = false;
+        this.userProfile = null;
+        this.isRegisteredUser = false;
+        this.nameCheckTimeout = null;
+        this.isNameAvailable = false;
+
         // Keyboard movement state
         this.keys = {
             up: false,
@@ -94,10 +101,449 @@ class ScrumPokerGame {
         this.generateEmojiSpritesheet();
         this.generateGrassTile();
         this.setupEventListeners();
+        this.setupAuthEventListeners();
         this.setupCanvasEvents();
         this.setupKeyboardControls();
         this.checkURLParameters();
         this.startGameLoop();
+        this.initializeAuth();
+    }
+
+    async initializeAuth() {
+        // Listen for auth state changes
+        authService.onAuthStateChange((user, profile) => {
+            console.log('Game received auth state change:', {
+                hasUser: !!user,
+                uid: user?.uid,
+                isAnonymous: user?.isAnonymous,
+                email: user?.email,
+                hasProfile: !!profile,
+                profileName: profile?.displayName
+            });
+            this.isAuthenticated = !!user;
+            this.userProfile = profile;
+            // Use Auth state as source of truth
+            this.isRegisteredUser = user && !user.isAnonymous;
+            this.updateUIForAuthState();
+        });
+
+        // Wait a moment for Firebase to initialize
+        setTimeout(async () => {
+            // Wait for email link processing to complete if in progress
+            while (authService.isProcessingEmailLink) {
+                console.log('Waiting for email link processing to complete...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            console.log('After email processing wait, state:', {
+                hasCurrentUser: !!authService.currentUser,
+                isProcessingEmailLink: authService.isProcessingEmailLink,
+                uid: authService.currentUser?.uid,
+                isAnonymous: authService.currentUser?.isAnonymous
+            });
+
+            // Only sign in anonymously if:
+            // 1. No user is currently signed in
+            // 2. We're not in the middle of processing an email sign-in link
+            if (!authService.currentUser && !authService.isProcessingEmailLink) {
+                console.log('No user found, signing in anonymously...');
+                try {
+                    await authService.signInAnonymously();
+                } catch (error) {
+                    console.error('Anonymous sign-in failed:', error);
+                }
+            } else {
+                console.log('Skipping anonymous sign-in, user exists or email processing');
+            }
+
+            // Initialize socket for name checking (with fresh token)
+            await this.initializeNameCheckSocket();
+            this.hideLoadingScreen();
+
+        }, 1500);
+
+        // Add window focus listener to sync auth state across tabs
+        window.addEventListener('focus', async () => {
+            if (authService.currentUser) {
+                await authService.currentUser.reload();
+                const token = await authService.getIdToken(true); // force refresh
+                if (token) {
+                    await authService.loadUserProfile();
+                    this.userProfile = authService.userProfile;
+                    // Update isRegisteredUser based on current auth user
+                    this.isRegisteredUser = !authService.currentUser.isAnonymous;
+                    this.updateUIForAuthState();
+                }
+            }
+        });
+    }
+
+    async initializeNameCheckSocket() {
+        // Create a temporary socket connection for name checking
+        // Only try to get a token if user is authenticated
+        let token = null;
+        if (authService.currentUser) {
+            try {
+                token = await authService.getIdToken(true);
+            } catch (error) {
+                console.warn('Failed to get token for name check socket:', error);
+            }
+        }
+
+        this.nameCheckSocket = io({
+            auth: { token }
+        });
+
+        this.nameCheckSocket.on('connect', () => {
+            console.log('Name check socket connected');
+        });
+
+        this.nameCheckSocket.on('connect_error', async (error) => {
+            console.warn('Name check socket connection error:', error.message);
+            // If connection failed due to auth, try reconnecting with fresh token
+            if (authService.currentUser && error.message.includes('auth')) {
+                const freshToken = await authService.getIdToken(true);
+                this.nameCheckSocket.auth = { token: freshToken };
+                this.nameCheckSocket.connect();
+            }
+        });
+    }
+
+    checkDisplayNameAvailability(displayName, callback) {
+        if (!this.nameCheckSocket || !this.nameCheckSocket.connected) {
+            console.error('Name check socket not connected');
+            callback(false);
+            return;
+        }
+
+        this.nameCheckSocket.emit('checkDisplayName', displayName, (result) => {
+            callback(result.available);
+        });
+    }
+
+    hideLoadingScreen() {
+        document.getElementById('loadingScreen').classList.remove('active');
+        document.getElementById('loginScreen').classList.add('active');
+    }
+
+    updateUIForAuthState() {
+        // Ensure registration status is up to date from Auth source of truth
+        if (authService.currentUser) {
+            this.isRegisteredUser = !authService.currentUser.isAnonymous;
+        }
+
+        const welcomeSection = document.getElementById('welcomeBackSection');
+        const nameInputSection = document.getElementById('nameInputSection');
+        const signUpPrompt = document.getElementById('signUpPrompt');
+
+        // userPointsDisplay removed
+        const menuSignUpBtn = document.getElementById('menuSignUpBtn');
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        const editAvatarSection = document.getElementById('editAvatarSection');
+        const editAvatarLocked = document.getElementById('editAvatarLocked');
+
+        if (this.userProfile && this.userProfile.displayName) {
+            // User has a profile - show welcome back
+            if (welcomeSection) welcomeSection.classList.remove('hidden');
+            if (nameInputSection) nameInputSection.classList.add('hidden');
+
+            const welcomeAvatar = document.getElementById('welcomeAvatar');
+            const welcomeName = document.getElementById('welcomeName');
+            const welcomePoints = document.getElementById('welcomePoints');
+            if (welcomeAvatar) welcomeAvatar.textContent = this.getAvatarEmoji(this.userProfile.avatar);
+            if (welcomeName) welcomeName.textContent = this.userProfile.displayName;
+            if (welcomePoints) welcomePoints.textContent = this.userProfile.points || 0;
+
+            // Update profile display
+            this.updateProfileDisplay();
+
+            if (this.isRegisteredUser) {
+                if (signUpPrompt) signUpPrompt.classList.add('hidden');
+                if (menuSignUpBtn) menuSignUpBtn.classList.add('hidden');
+                if (logoutBtn) logoutBtn.classList.remove('hidden');
+                if (editAvatarSection) editAvatarSection.classList.remove('hidden');
+                if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
+                // Pre-select current avatar for edit profile modal
+                this.selectedAvatar = this.userProfile.avatar;
+                this.highlightSelectedAvatar();
+            } else {
+                if (signUpPrompt) signUpPrompt.classList.remove('hidden');
+                if (menuSignUpBtn) menuSignUpBtn.classList.remove('hidden');
+                if (logoutBtn) logoutBtn.classList.add('hidden');
+                if (editAvatarSection) editAvatarSection.classList.add('hidden');
+                if (editAvatarLocked) editAvatarLocked.classList.remove('hidden');
+            }
+        } else {
+            // New user - show name input
+            if (welcomeSection) welcomeSection.classList.add('hidden');
+            if (nameInputSection) nameInputSection.classList.remove('hidden');
+
+            const landingSignInBtn = document.getElementById('landingSignInBtn');
+            const authStatusDiv = document.getElementById('authStatusMsg') || document.createElement('div');
+
+            if (this.isRegisteredUser) {
+                // Authenticated but no profile
+                if (logoutBtn) logoutBtn.classList.remove('hidden');
+                if (landingSignInBtn) landingSignInBtn.classList.add('hidden');
+                if (signUpPrompt) signUpPrompt.classList.add('hidden');
+                if (menuSignUpBtn) menuSignUpBtn.classList.add('hidden');
+
+                // Show email
+                authStatusDiv.id = 'authStatusMsg';
+                authStatusDiv.className = 'auth-status-msg';
+                authStatusDiv.style.marginBottom = '10px';
+                authStatusDiv.style.color = '#2ecc71';
+                authStatusDiv.textContent = `✓ Signed in as ${authService.currentUser.email}`;
+
+                // Insert before name input if not already there
+                if (!document.getElementById('authStatusMsg') && nameInputSection) {
+                    nameInputSection.insertBefore(authStatusDiv, nameInputSection.firstChild);
+                }
+                authStatusDiv.classList.remove('hidden');
+
+                // === AUTO CREATE PROFILE LOGIC ===
+                // Avoid infinite loop if creation fails or takes time
+                if (!this.isCreatingProfile) {
+                    this.isCreatingProfile = true;
+                    // Show a loading text or spinner in the auth status instead of just email
+                    authStatusDiv.textContent = `Creating profile for ${authService.currentUser.email}...`;
+                    this.autoCreateProfile();
+                }
+
+                if (editAvatarSection) editAvatarSection.classList.remove('hidden');
+                if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
+
+            } else {
+                // Anonymous
+                if (logoutBtn) logoutBtn.classList.add('hidden');
+                if (landingSignInBtn) landingSignInBtn.classList.remove('hidden');
+                if (signUpPrompt) signUpPrompt.classList.remove('hidden');
+                if (menuSignUpBtn) menuSignUpBtn.classList.remove('hidden');
+
+                if (document.getElementById('authStatusMsg')) {
+                    document.getElementById('authStatusMsg').classList.add('hidden');
+                }
+
+                if (editAvatarSection) editAvatarSection.classList.add('hidden');
+                if (editAvatarLocked) editAvatarLocked.classList.remove('hidden');
+            }
+        }
+
+        // Update profile display (handles points and guest state)
+        this.updateProfileDisplay();
+    }
+
+    async autoCreateProfile() {
+        if (!this.isRegisteredUser || !authService.currentUser.email) return;
+
+        try {
+            // Generate a default name from email
+            const emailPart = authService.currentUser.email.split('@')[0];
+            // Take up to 15 chars to be safe with limits
+            let baseName = emailPart.substring(0, 15);
+            // Capitalize first letter
+            baseName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+
+            // Try to create profile with this name
+            // If it fails due to duplication, we might need a retry strategy
+            // For now, let's try appending a random number if the first attempt fails
+
+            try {
+                await authService.createUserProfile(baseName);
+            } catch (error) {
+                console.log('Name taken, retrying with suffix...');
+                const suffix = Math.floor(Math.random() * 1000);
+                await authService.createUserProfile(`${baseName}${suffix}`);
+            }
+
+            // Reload user profile is handled by authService updates usually,
+            // but let's force a reload to be sure
+            await authService.loadUserProfile();
+            this.userProfile = authService.userProfile;
+            this.isCreatingProfile = false;
+            this.updateUIForAuthState();
+
+        } catch (error) {
+            console.error('Auto-creation failed:', error);
+            this.isCreatingProfile = false;
+            document.getElementById('authStatusMsg').textContent = `✓ Signed in as ${authService.currentUser.email} (Profile creation failed)`;
+        }
+    }
+
+    updateProfileDisplay() {
+        const profileAvatar = document.getElementById('profileAvatar');
+        const profileName = document.getElementById('profileName');
+        const menuUserName = document.getElementById('menuUserName');
+        const currentUserPoints = document.getElementById('currentUserPoints');
+
+        if (this.userProfile) {
+            profileAvatar.textContent = this.getAvatarEmoji(this.userProfile.avatar);
+            profileName.textContent = this.userProfile.displayName || 'Guest';
+            menuUserName.textContent = this.userProfile.displayName || 'Guest';
+            if (currentUserPoints) currentUserPoints.textContent = `${this.userProfile.points || 0} pts`;
+        } else {
+            profileAvatar.textContent = '👤';
+            profileName.textContent = 'Guest';
+            menuUserName.textContent = 'Guest';
+            if (currentUserPoints) currentUserPoints.textContent = '0 pts';
+        }
+    }
+
+    getAvatarEmoji(avatarName) {
+        const config = this.spriteConfig[avatarName];
+        return config ? config.emoji : '👤';
+    }
+
+    highlightSelectedAvatar() {
+        document.querySelectorAll('.avatar-option').forEach(a => a.classList.remove('selected'));
+        if (this.selectedAvatar) {
+            const selectedEl = document.querySelector(`.avatar-option[data-avatar="${this.selectedAvatar}"]`);
+            if (selectedEl) selectedEl.classList.add('selected');
+        }
+    }
+
+    setupAuthEventListeners() {
+        // Name input validation (debounced) - using server-side check
+        const nameInput = document.getElementById('playerName');
+        const nameAvailability = document.getElementById('nameAvailability');
+
+        nameInput.addEventListener('input', (e) => {
+            const name = e.target.value.trim();
+            clearTimeout(this.nameCheckTimeout);
+
+            if (name.length < 2) {
+                nameAvailability.textContent = '';
+                this.isNameAvailable = false;
+                return;
+            }
+
+            nameAvailability.textContent = 'Checking...';
+            nameAvailability.className = 'name-availability checking';
+
+            this.nameCheckTimeout = setTimeout(async () => {
+                // Use server-side check via socket for better security
+                this.checkDisplayNameAvailability(name, (available) => {
+                    this.isNameAvailable = available;
+                    if (available) {
+                        nameAvailability.textContent = '✓ Available';
+                        nameAvailability.className = 'name-availability available';
+                    } else {
+                        nameAvailability.textContent = '✗ Name already taken';
+                        nameAvailability.className = 'name-availability unavailable';
+                    }
+                });
+            }, 500);
+        });
+
+        // Profile dropdown toggle
+        document.getElementById('profileBtn').addEventListener('click', () => {
+            document.getElementById('profileMenu').classList.toggle('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('userProfileDropdown');
+            if (!dropdown.contains(e.target)) {
+                document.getElementById('profileMenu').classList.add('hidden');
+            }
+        });
+
+        // Sign up modal
+        document.getElementById('showSignUpBtn')?.addEventListener('click', () => {
+            document.getElementById('signUpModal').classList.remove('hidden');
+        });
+
+        document.getElementById('menuSignUpBtn')?.addEventListener('click', () => {
+            document.getElementById('signUpModal').classList.remove('hidden');
+            document.getElementById('profileMenu').classList.add('hidden');
+        });
+
+        document.getElementById('closeSignUpModal')?.addEventListener('click', () => {
+            document.getElementById('signUpModal').classList.add('hidden');
+        });
+
+        // Landing Sign In Button
+        document.getElementById('landingSignInBtn')?.addEventListener('click', () => {
+            document.getElementById('signUpModal').classList.remove('hidden');
+        });
+
+        // Send OTP email
+        document.getElementById('sendOTPBtn')?.addEventListener('click', async () => {
+            const email = document.getElementById('signUpEmail').value.trim();
+            if (!email || !email.includes('@')) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            try {
+                await authService.sendOTPEmail(email);
+                document.getElementById('signUpStep1').classList.add('hidden');
+                document.getElementById('signUpStep2').classList.remove('hidden');
+                document.getElementById('sentEmailDisplay').textContent = email;
+            } catch (error) {
+                alert('Failed to send email: ' + error.message);
+            }
+        });
+
+        // Edit profile modal
+        document.getElementById('editProfileBtn')?.addEventListener('click', () => {
+            document.getElementById('editProfileModal').classList.remove('hidden');
+            document.getElementById('profileMenu').classList.add('hidden');
+            if (this.userProfile) {
+                document.getElementById('editDisplayName').value = this.userProfile.displayName || '';
+            }
+        });
+
+        document.getElementById('closeEditProfileModal')?.addEventListener('click', () => {
+            document.getElementById('editProfileModal').classList.add('hidden');
+        });
+
+        // Save profile changes
+        document.getElementById('saveProfileBtn')?.addEventListener('click', async () => {
+            const newName = document.getElementById('editDisplayName').value.trim();
+            if (newName && newName !== this.userProfile?.displayName) {
+                try {
+                    await this.updateDisplayNameViaSocket(newName);
+                    this.userProfile.displayName = newName;
+                    this.updateUIForAuthState();
+                } catch (error) {
+                    alert('Failed to update name: ' + error.message);
+                    return;
+                }
+            }
+
+            // Update avatar if registered
+            if (this.isRegisteredUser && this.selectedAvatar && this.selectedAvatar !== this.userProfile?.avatar) {
+                try {
+                    await authService.updateAvatar(this.selectedAvatar);
+                    this.userProfile.avatar = this.selectedAvatar;
+                    this.updateUIForAuthState();
+                } catch (error) {
+                    alert('Failed to update avatar: ' + error.message);
+                }
+            }
+
+            document.getElementById('editProfileModal').classList.add('hidden');
+        });
+
+        // Logout
+        document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+            try {
+                await authService.signOut();
+                location.reload();
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+
+        // Change name button (for returning users)
+        document.getElementById('changeNameBtn')?.addEventListener('click', () => {
+            document.getElementById('editProfileModal').classList.remove('hidden');
+            if (this.userProfile) {
+                document.getElementById('editDisplayName').value = this.userProfile.displayName || '';
+            }
+        });
     }
 
     generateGrassTile() {
@@ -140,35 +586,12 @@ class ScrumPokerGame {
         });
 
         // Login screen
-        document.getElementById('createRoomBtn').addEventListener('click', () => {
-            const name = document.getElementById('playerName').value.trim();
-            if (!name) {
-                alert('Please enter your name');
-                return;
-            }
-            if (!this.selectedAvatar) {
-                alert('Please select an avatar');
-                return;
-            }
-            this.connectAndCreateRoom(name);
+        document.getElementById('createRoomBtn').addEventListener('click', async () => {
+            await this.handleCreateOrJoinRoom(false);
         });
 
-        document.getElementById('joinRoomBtn').addEventListener('click', () => {
-            const name = document.getElementById('playerName').value.trim();
-            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
-            if (!name) {
-                alert('Please enter your name');
-                return;
-            }
-            if (!this.selectedAvatar) {
-                alert('Please select an avatar');
-                return;
-            }
-            if (!roomCode) {
-                alert('Please enter a room code');
-                return;
-            }
-            this.connectAndJoinRoom(name, roomCode);
+        document.getElementById('joinRoomBtn').addEventListener('click', async () => {
+            await this.handleCreateOrJoinRoom(true);
         });
 
         // Allow Enter key to submit
@@ -427,39 +850,158 @@ class ScrumPokerGame {
         });
     }
 
-    connectAndCreateRoom(playerName) {
-        console.log('Creating room for player:', playerName, 'with avatar:', this.selectedAvatar);
-        this.socket = io();
+    async handleCreateOrJoinRoom(isJoining) {
+        let name = this.userProfile?.displayName;
+        const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+
+        // If no profile, need to create one first
+        if (!this.userProfile || !this.userProfile.displayName) {
+            name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            if (!this.isNameAvailable) {
+                alert('Please choose an available display name');
+                return;
+            }
+
+            // Create profile via server for security
+            try {
+                await this.createProfileViaSocket(name);
+            } catch (error) {
+                alert('Failed to create profile: ' + error.message);
+                return;
+            }
+        }
+
+        if (isJoining && !roomCode) {
+            alert('Please enter a room code');
+            return;
+        }
+
+        if (isJoining) {
+            this.connectAndJoinRoom(name, roomCode);
+        } else {
+            this.connectAndCreateRoom(name);
+        }
+    }
+
+    createProfileViaSocket(displayName) {
+        return new Promise((resolve, reject) => {
+            if (!this.nameCheckSocket || !this.nameCheckSocket.connected) {
+                reject(new Error('Not connected to server'));
+                return;
+            }
+
+            this.nameCheckSocket.emit('createProfile', { displayName }, (result) => {
+                if (result.success) {
+                    // Reload profile from authService
+                    authService.loadUserProfile().then(() => {
+                        this.userProfile = authService.userProfile;
+                        resolve();
+                    }).catch(reject);
+                } else {
+                    reject(new Error(result.error || 'Failed to create profile'));
+                }
+            });
+        });
+    }
+
+    updateDisplayNameViaSocket(newDisplayName) {
+        return new Promise((resolve, reject) => {
+            // Use the game socket if connected, otherwise use nameCheckSocket
+            const socketToUse = this.socket?.connected ? this.socket : this.nameCheckSocket;
+
+            if (!socketToUse || !socketToUse.connected) {
+                reject(new Error('Not connected to server'));
+                return;
+            }
+
+            socketToUse.emit('updateDisplayName', newDisplayName, (result) => {
+                if (result.success) {
+                    // Update local profile
+                    if (authService.userProfile) {
+                        authService.userProfile.displayName = newDisplayName;
+                    }
+                    resolve();
+                } else {
+                    reject(new Error(result.error || 'Failed to update display name'));
+                }
+            });
+        });
+    }
+
+    async connectAndCreateRoom(playerName) {
+        console.log('Creating room for player:', playerName, 'with avatar:', this.userProfile?.avatar || this.selectedAvatar);
+
+        // Get auth token (force refresh to avoid expired token)
+        const token = await authService.getIdToken(true);
+
+        this.socket = io({
+            auth: { token }
+        });
         this.setupSocketListeners();
 
         this.socket.on('connect', () => {
             console.log('Connected, creating room...');
-            this.socket.emit('createRoom', { playerName, avatar: this.selectedAvatar });
+            this.socket.emit('createRoom', {
+                playerName,
+                avatar: this.userProfile?.avatar || this.selectedAvatar
+            });
         });
     }
 
-    connectAndJoinRoom(playerName, roomCode) {
-        console.log('Joining room:', roomCode, 'for player:', playerName, 'with avatar:', this.selectedAvatar);
-        this.socket = io();
+    async connectAndJoinRoom(playerName, roomCode) {
+        console.log('Joining room:', roomCode, 'for player:', playerName, 'with avatar:', this.userProfile?.avatar || this.selectedAvatar);
+
+        // Get auth token (force refresh to avoid expired token)
+        const token = await authService.getIdToken(true);
+
+        this.socket = io({
+            auth: { token }
+        });
         this.setupSocketListeners();
 
         this.socket.on('connect', () => {
             console.log('Connected, joining room...');
-            this.socket.emit('joinRoom', { roomId: roomCode, playerName, avatar: this.selectedAvatar });
+            this.socket.emit('joinRoom', {
+                roomId: roomCode,
+                playerName,
+                avatar: this.userProfile?.avatar || this.selectedAvatar
+            });
         });
     }
 
     setupSocketListeners() {
-        this.socket.on('roomJoined', ({ roomId, playerId }) => {
+        this.socket.on('roomJoined', ({ roomId, playerId, userProfile }) => {
             console.log('Successfully joined room:', roomId);
             this.roomId = roomId;
             this.myId = playerId;
+            if (userProfile) {
+                this.userProfile = userProfile;
+                this.updateUIForAuthState();
+            }
             document.getElementById('roomId').textContent = roomId;
             this.showGameScreen();
 
             // Initial check for game master status (though usually handled by roomState)
             const myPlayer = this.players.get(this.myId);
             this.updateHostControls(myPlayer?.isGameMaster);
+        });
+
+        // Points awarded event
+        this.socket.on('pointsAwarded', (pointsData) => {
+            const myPoints = pointsData.find(p => p.playerId === this.myId);
+            if (myPoints && myPoints.points > 0) {
+                this.showPointsNotification(myPoints.points);
+                // Update local points
+                if (this.userProfile) {
+                    this.userProfile.points = (this.userProfile.points || 0) + myPoints.points;
+                    this.updateProfileDisplay();
+                    document.getElementById('currentUserPoints').textContent = this.userProfile.points;
+                }
+            }
         });
 
         this.socket.on('roomState', (state) => {
@@ -542,9 +1084,22 @@ class ScrumPokerGame {
     }
 
     showGameScreen() {
+        document.getElementById('loadingScreen').classList.remove('active');
         document.getElementById('loginScreen').classList.remove('active');
         document.getElementById('gameScreen').classList.add('active');
         this.updatePlayerList();
+        this.updateProfileDisplay();
+    }
+
+    showPointsNotification(points) {
+        const notification = document.getElementById('pointsNotification');
+        document.getElementById('pointsEarnedValue').textContent = points;
+        notification.classList.remove('hidden');
+
+        // Hide after 3 seconds
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 3000);
     }
 
     updateHostControls(isGameMaster) {
@@ -601,6 +1156,10 @@ class ScrumPokerGame {
             return a.name.localeCompare(b.name);
         });
 
+        // Check if current user is the host
+        const myPlayer = this.players.get(this.myId);
+        const isHost = myPlayer?.isGameMaster;
+
         sortedPlayers.forEach(player => {
             const playerItem = document.createElement('div');
             playerItem.className = `player-list-item${player.id === this.myId ? ' is-me' : ''}`;
@@ -616,6 +1175,12 @@ class ScrumPokerGame {
                 cardStatus = `<div class="player-card-empty"></div>`;
             }
 
+            // Show "Make Host" button if I'm the host and this is not me
+            let makeHostBtn = '';
+            if (isHost && player.id !== this.myId) {
+                makeHostBtn = `<button class="make-host-btn" data-player-id="${player.id}" title="Make ${player.name} the host">👑</button>`;
+            }
+
             const avatarId = `avatar-list-${player.id}`;
             playerItem.innerHTML = `
                 <div class="player-avatar" id="${avatarId}"></div>
@@ -628,6 +1193,9 @@ class ScrumPokerGame {
                         ${player.card !== undefined ? 'Selected' : 'Choosing...'}
                     </div>
                 </div>
+                <div class="player-actions">
+                    ${makeHostBtn}
+                </div>
                 <div class="player-card-container">
                     ${cardStatus}
                 </div>
@@ -635,6 +1203,18 @@ class ScrumPokerGame {
 
             playerListElement.appendChild(playerItem);
             this.drawAvatarIcon(player.avatar, avatarId);
+        });
+
+        // Add click handlers for make host buttons
+        playerListElement.querySelectorAll('.make-host-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const playerId = btn.dataset.playerId;
+                const player = this.players.get(playerId);
+                if (player && confirm(`Make ${player.name} the host?`)) {
+                    this.socket.emit('transferHost', playerId);
+                }
+            });
         });
     }
 
@@ -942,10 +1522,10 @@ class ScrumPokerGame {
         }
 
         // Draw name label above head
-        this.ctx.fillStyle = 'white';
-        this.ctx.strokeStyle = 'black';
+        this.ctx.fillStyle = 'black';
+        this.ctx.strokeStyle = 'white';
         this.ctx.lineWidth = 3;
-        this.ctx.font = 'bold 14px Inter';
+        this.ctx.font = "bold 14px 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif";
         this.ctx.textAlign = 'center';
 
         const labelY = y - 70;
@@ -967,11 +1547,11 @@ class ScrumPokerGame {
 
             if (this.cardsRevealed) {
                 this.ctx.fillStyle = '#000';
-                this.ctx.font = 'bold 16px Inter';
+                this.ctx.font = "bold 16px 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif";
                 this.ctx.fillText(player.card, x, cardY + 5);
             } else {
                 this.ctx.fillStyle = '#000';
-                this.ctx.font = 'bold 16px Inter';
+                this.ctx.font = "bold 16px 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif";
                 this.ctx.fillText('?', x, cardY + 5);
             }
         }

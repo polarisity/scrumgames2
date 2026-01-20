@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In Complete</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #1a1a1a;
+            color: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            image-rendering: pixelated;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 3rem;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Processing State */
+        .processing-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(108, 92, 231, 0.2);
+            border-top-color: #6c5ce7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            color: #a29bfe;
+            font-size: 1.1rem;
+        }
+
+        /* Success State */
+        .success-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            70% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-title {
+            color: #00b894;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .success-message {
+            color: #b2bec3;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .success-message strong {
+            color: #f5f6fa;
+            display: block;
+            margin-top: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        /* Error State */
+        .error-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .error-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+        }
+
+        .error-title {
+            color: #e74c3c;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .error-message {
+            color: #b2bec3;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Button */
+        .primary-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 0.5rem;
+        }
+
+        .primary-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Processing State -->
+        <div id="processingState" class="processing-state">
+            <div class="loading-spinner"></div>
+            <p class="processing-text">Completing sign-in...</p>
+        </div>
+
+        <!-- Success State -->
+        <div id="successState" class="success-state hidden">
+            <div class="success-icon">&#10003;</div>
+            <h1 class="success-title">Sign-in Successful!</h1>
+            <p class="success-message">
+                Your account is now signed in.
+                <strong>You may now close this page.</strong>
+            </p>
+            <a href="/" class="primary-btn">Continue to Game</a>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="error-state hidden">
+            <div class="error-icon">!</div>
+            <h1 class="error-title">Sign-in Failed</h1>
+            <p id="errorMessage" class="error-message">Something went wrong. Please try again.</p>
+            <a href="/" class="primary-btn">Return to Game</a>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="firebase.config.js"></script>
+    <script>
+        const processingState = document.getElementById('processingState');
+        const successState = document.getElementById('successState');
+        const errorState = document.getElementById('errorState');
+        const errorMessage = document.getElementById('errorMessage');
+
+        function showSuccess() {
+            processingState.classList.add('hidden');
+            errorState.classList.add('hidden');
+            successState.classList.remove('hidden');
+        }
+
+        function showError(message) {
+            processingState.classList.add('hidden');
+            successState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+            errorMessage.textContent = message || 'Something went wrong. Please try again.';
+        }
+
+        async function completeSignIn() {
+            try {
+                // Check if this is a valid sign-in link
+                if (!auth.isSignInWithEmailLink(window.location.href)) {
+                    showError('This link is invalid or has expired.');
+                    return;
+                }
+
+                // Get email from localStorage (saved when user initiated sign-in)
+                let email = localStorage.getItem('emailForSignIn');
+
+                // If email not found, prompt user to enter it
+                if (!email) {
+                    email = window.prompt('Please enter your email address to confirm sign-in:');
+                    if (!email) {
+                        showError('Email is required to complete sign-in.');
+                        return;
+                    }
+                }
+
+                // Complete the sign-in
+                await auth.signInWithEmailLink(email, window.location.href);
+
+                // Clear the stored email
+                localStorage.removeItem('emailForSignIn');
+
+                // Show success state
+                showSuccess();
+
+            } catch (error) {
+                console.error('Sign-in error:', error);
+
+                // Provide user-friendly error messages
+                let message = 'Something went wrong. Please try again.';
+                if (error.code === 'auth/invalid-action-code') {
+                    message = 'This sign-in link has expired or already been used. Please request a new one.';
+                } else if (error.code === 'auth/invalid-email') {
+                    message = 'The email address is invalid. Please check and try again.';
+                } else if (error.code === 'auth/user-disabled') {
+                    message = 'This account has been disabled.';
+                }
+
+                showError(message);
+            }
+        }
+
+        // Start sign-in process when page loads
+        completeSignIn();
+    </script>
+</body>
+</html>

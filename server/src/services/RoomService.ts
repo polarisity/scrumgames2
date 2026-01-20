@@ -139,6 +139,91 @@ export class RoomService {
     }
   }
 
+  transferHost(roomId: string, currentHostId: string, newHostId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+
+    const currentHost = room.players.get(currentHostId);
+    const newHost = room.players.get(newHostId);
+
+    // Verify current host is actually the game master
+    if (!currentHost?.isGameMaster) return false;
+    // Verify new host exists
+    if (!newHost) return false;
+
+    // Transfer host role
+    currentHost.isGameMaster = false;
+    newHost.isGameMaster = true;
+    console.log(`Host transferred from ${currentHost.name} to ${newHost.name} in room ${roomId}`);
+    return true;
+  }
+
+  /**
+   * Find a safe spawn position that doesn't overlap with existing players
+   * @param roomId The room to check for existing players
+   * @param minDistance Minimum distance from other players (default 80 to match client collision radius * 2)
+   * @returns {x, y} coordinates for safe spawn position
+   */
+  findSafeSpawnPosition(roomId: string, minDistance: number = 80): { x: number; y: number } {
+    const room = this.rooms.get(roomId);
+    const existingPlayers = room ? Array.from(room.players.values()) : [];
+
+    // Spawn area bounds (matching the original random ranges)
+    const minX = 100;
+    const maxX = 700;
+    const minY = 100;
+    const maxY = 500;
+
+    // If no players, spawn in center
+    if (existingPlayers.length === 0) {
+      return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    }
+
+    // Try to find a position that's far enough from all existing players
+    const maxAttempts = 50;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const x = Math.random() * (maxX - minX) + minX;
+      const y = Math.random() * (maxY - minY) + minY;
+
+      let isSafe = true;
+      for (const player of existingPlayers) {
+        const dist = Math.hypot(x - player.x, y - player.y);
+        if (dist < minDistance) {
+          isSafe = false;
+          break;
+        }
+      }
+
+      if (isSafe) {
+        return { x, y };
+      }
+    }
+
+    // If random attempts failed, use grid-based approach to find safe spot
+    const gridStep = minDistance;
+    let bestPosition = { x: minX, y: minY };
+    let maxMinDistance = 0;
+
+    for (let x = minX; x <= maxX; x += gridStep) {
+      for (let y = minY; y <= maxY; y += gridStep) {
+        let minDistToPlayer = Infinity;
+
+        for (const player of existingPlayers) {
+          const dist = Math.hypot(x - player.x, y - player.y);
+          minDistToPlayer = Math.min(minDistToPlayer, dist);
+        }
+
+        if (minDistToPlayer > maxMinDistance) {
+          maxMinDistance = minDistToPlayer;
+          bestPosition = { x, y };
+        }
+      }
+    }
+
+    return bestPosition;
+  }
+
   // Optional: Add this method for debugging
   getRoomList(): string[] {
     return Array.from(this.rooms.keys());
