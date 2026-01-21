@@ -15,13 +15,16 @@ This happens because Firebase requires all domains used for email link authentic
 
 3. Click **"Add domain"**
 
-4. Add the following domains (one at a time):
-   - `localhost` (for local development)
-   - Any production domain you're using (e.g., `yourdomain.com`)
+4. Add the following domain:
+   ```
+   scrumptious-xzhgd.ondigitalocean.app
+   ```
 
-5. Click **"Add"** for each
+5. Click **"Add"**
 
-6. Try sending the OTP email again
+6. (Optional) Also add `localhost` if you plan to test locally
+
+7. Try sending the OTP email again - it should work immediately!
 
 ### Option 2: Whitelist via Firebase CLI
 
@@ -41,9 +44,9 @@ firebase open auth
 ## What Domains to Whitelist
 
 Based on your setup:
+- **scrumptious-xzhgd.ondigitalocean.app** - Your DigitalOcean production domain (REQUIRED)
 - **localhost** - For local development (port 3000)
 - **127.0.0.1** - Alternative local address
-- Your production domain when you deploy
 
 ## After Whitelisting
 
