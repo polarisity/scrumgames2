@@ -139,120 +139,168 @@ export class SocketHandler {
     });
 
     socket.on('move', ({ x, y }: { x: number; y: number }) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        this.roomService.updatePlayerPosition(roomId, socket.id, x, y);
-        this.broadcastRoomState(roomId);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          this.roomService.updatePlayerPosition(roomId, socket.id, x, y);
+          this.broadcastRoomState(roomId);
+        }
+      } catch (error) {
+        console.error('Error handling move event:', error);
       }
     });
 
     socket.on('selectCard', (card: string) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        this.roomService.selectCard(roomId, socket.id, card);
-        this.broadcastRoomState(roomId);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          this.roomService.selectCard(roomId, socket.id, card);
+          this.broadcastRoomState(roomId);
+        }
+      } catch (error) {
+        console.error('Error handling selectCard event:', error);
       }
     });
 
     socket.on('revealCards', async () => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const room = this.roomService.getRoom(roomId);
-        const player = room?.players.get(socket.id);
-        if (player?.isGameMaster) {
-          this.roomService.revealCards(roomId);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const room = this.roomService.getRoom(roomId);
+          const player = room?.players.get(socket.id);
+          if (player?.isGameMaster) {
+            this.roomService.revealCards(roomId);
 
-          // Calculate and award points
-          await this.awardPoints(roomId);
+            // Calculate and award points
+            await this.awardPoints(roomId);
 
-          this.broadcastRoomState(roomId);
+            this.broadcastRoomState(roomId);
+          }
         }
+      } catch (error) {
+        console.error('Error handling revealCards event:', error);
       }
     });
 
     socket.on('resetRound', () => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const room = this.roomService.getRoom(roomId);
-        const player = room?.players.get(socket.id);
-        if (player?.isGameMaster) {
-          this.roomService.resetCards(roomId);
-          this.broadcastRoomState(roomId);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const room = this.roomService.getRoom(roomId);
+          const player = room?.players.get(socket.id);
+          if (player?.isGameMaster) {
+            this.roomService.resetCards(roomId);
+            this.broadcastRoomState(roomId);
+          }
         }
+      } catch (error) {
+        console.error('Error handling resetRound event:', error);
       }
     });
 
     socket.on('throwItem', ({ type, targetX, targetY }: { type: string; targetX: number; targetY: number }) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const room = this.roomService.getRoom(roomId);
-        const player = room?.players.get(socket.id);
-        if (player) {
-          const throwable: Throwable = {
-            id: uuidv4(),
-            type: type as any,
-            x: player.x,
-            y: player.y,
-            targetX,
-            targetY,
-            throwerId: socket.id,
-            timestamp: Date.now()
-          };
-          this.roomService.addThrowable(roomId, throwable);
-          this.io.to(roomId).emit('itemThrown', throwable);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const room = this.roomService.getRoom(roomId);
+          const player = room?.players.get(socket.id);
+          if (player) {
+            const throwable: Throwable = {
+              id: uuidv4(),
+              type: type as any,
+              x: player.x,
+              y: player.y,
+              targetX,
+              targetY,
+              throwerId: socket.id,
+              timestamp: Date.now()
+            };
+            this.roomService.addThrowable(roomId, throwable);
+            this.io.to(roomId).emit('itemThrown', throwable);
+          }
         }
+      } catch (error) {
+        console.error('Error handling throwItem event:', error);
       }
     });
 
     socket.on('performAction', (action: string) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        this.io.to(roomId).emit('playerAction', {
-          playerId: socket.id,
-          action,
-          timestamp: Date.now()
-        });
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          this.io.to(roomId).emit('playerAction', {
+            playerId: socket.id,
+            action,
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        console.error('Error handling performAction event:', error);
       }
     });
 
     socket.on('updateStory', (story: string) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const room = this.roomService.getRoom(roomId);
-        const player = room?.players.get(socket.id);
-        if (player?.isGameMaster) {
-          this.roomService.updateStory(roomId, story);
-          this.broadcastRoomState(roomId);
+      try {
+        // Validate story length (max 10000 characters)
+        if (typeof story !== 'string' || story.length > 10000) {
+          console.warn('Invalid story length from socket:', socket.id);
+          return;
         }
+
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const room = this.roomService.getRoom(roomId);
+          const player = room?.players.get(socket.id);
+          if (player?.isGameMaster) {
+            this.roomService.updateStory(roomId, story);
+            this.broadcastRoomState(roomId);
+          }
+        }
+      } catch (error) {
+        console.error('Error handling updateStory event:', error);
       }
     });
 
     socket.on('transferHost', (newHostId: string) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const success = this.roomService.transferHost(roomId, socket.id, newHostId);
-        if (success) {
-          this.broadcastRoomState(roomId);
+      try {
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const success = this.roomService.transferHost(roomId, socket.id, newHostId);
+          if (success) {
+            this.broadcastRoomState(roomId);
+          }
         }
+      } catch (error) {
+        console.error('Error handling transferHost event:', error);
       }
     });
 
     socket.on('sendMessage', (text: string) => {
-      const roomId = this.playerRoomMap.get(socket.id);
-      if (roomId) {
-        const room = this.roomService.getRoom(roomId);
-        const player = room?.players.get(socket.id);
-        if (player) {
-          const message = {
-            id: uuidv4(),
-            playerId: socket.id,
-            playerName: player.name,
-            text,
-            timestamp: Date.now()
-          };
-          this.roomService.addMessage(roomId, message);
-          this.broadcastRoomState(roomId);
+      try {
+        // Validate message length (max 1000 characters)
+        if (typeof text !== 'string' || text.trim().length === 0 || text.length > 1000) {
+          console.warn('Invalid message length from socket:', socket.id);
+          return;
         }
+
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          const room = this.roomService.getRoom(roomId);
+          const player = room?.players.get(socket.id);
+          if (player) {
+            const message = {
+              id: uuidv4(),
+              playerId: socket.id,
+              playerName: player.name,
+              text: text.trim(),
+              timestamp: Date.now()
+            };
+            this.roomService.addMessage(roomId, message);
+            this.broadcastRoomState(roomId);
+          }
+        }
+      } catch (error) {
+        console.error('Error handling sendMessage event:', error);
       }
     });
 
