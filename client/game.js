@@ -1239,14 +1239,16 @@ class ScrumPokerGame {
         try {
             await navigator.clipboard.writeText(shareUrl);
             const btn = document.getElementById('copyLinkBtn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '✅ Copied!';
-            btn.classList.add('success');
+            if (btn) {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '✅ Copied!';
+                btn.classList.add('success');
 
-            setTimeout(() => {
-                btn.innerHTML = originalText;
-                btn.classList.remove('success');
-            }, 2000);
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('success');
+                }, 2000);
+            }
         } catch (err) {
             console.error('Failed to copy text: ', err);
             alert('Failed to copy link to clipboard');
