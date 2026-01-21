@@ -91,6 +91,23 @@ class AuthService {
             return true;
         } catch (error) {
             console.error('Failed to send OTP email:', error);
+
+            // Provide helpful error message for unauthorized domain
+            if (error.code === 'auth/unauthorized-continue-uri') {
+                const domain = new URL(window.location.origin).hostname;
+                const helpfulError = new Error(
+                    `Domain not whitelisted: ${domain}\n\n` +
+                    `To fix this:\n` +
+                    `1. Go to Firebase Console: https://console.firebase.google.com/project/scrumptious-73bc9/authentication/settings\n` +
+                    `2. Scroll to "Authorized domains"\n` +
+                    `3. Click "Add domain"\n` +
+                    `4. Add: ${domain}\n` +
+                    `5. Try sending the email again`
+                );
+                helpfulError.code = error.code;
+                throw helpfulError;
+            }
+
             throw error;
         }
     }
