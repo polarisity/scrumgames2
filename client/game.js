@@ -21,6 +21,9 @@ class ScrumPokerGame {
         this.nameCheckTimeout = null;
         this.isNameAvailable = false;
 
+        // Timeout tracking for cleanup
+        this.activeTimeouts = [];
+
         // Keyboard movement state
         this.keys = {
             up: false,
@@ -128,7 +131,7 @@ class ScrumPokerGame {
         });
 
         // Wait a moment for Firebase to initialize
-        setTimeout(async () => {
+        this.setTrackedTimeout(async () => {
             // Wait for email link processing to complete if in progress
             while (authService.isProcessingEmailLink) {
                 console.log('Waiting for email link processing to complete...');
@@ -1076,6 +1079,7 @@ class ScrumPokerGame {
 
         this.socket.on('disconnect', (reason) => {
             console.log('Disconnected:', reason);
+            this.clearAllTimeouts(); // Clean up all active timeouts
             if (reason === 'io server disconnect') {
                 alert('You were disconnected from the server.');
                 location.reload();
@@ -1097,7 +1101,7 @@ class ScrumPokerGame {
         notification.classList.remove('hidden');
 
         // Hide after 3 seconds
-        setTimeout(() => {
+        this.setTrackedTimeout(() => {
             notification.classList.add('hidden');
         }, 3000);
     }
@@ -1239,14 +1243,16 @@ class ScrumPokerGame {
         try {
             await navigator.clipboard.writeText(shareUrl);
             const btn = document.getElementById('copyLinkBtn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '✅ Copied!';
-            btn.classList.add('success');
+            if (btn) {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '✅ Copied!';
+                btn.classList.add('success');
 
-            setTimeout(() => {
-                btn.innerHTML = originalText;
-                btn.classList.remove('success');
-            }, 2000);
+                this.setTrackedTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('success');
+                }, 2000);
+            }
         } catch (err) {
             console.error('Failed to copy text: ', err);
             alert('Failed to copy link to clipboard');
@@ -1354,7 +1360,7 @@ class ScrumPokerGame {
 
     animateThrowable(throwable) {
         // Throwable animation is handled in the draw loop
-        setTimeout(() => {
+        this.setTrackedTimeout(() => {
             const index = this.throwables.findIndex(t => t.id === throwable.id);
             if (index > -1) {
                 this.throwables.splice(index, 1);
@@ -1600,6 +1606,30 @@ class ScrumPokerGame {
 
     drawHoverEffects() {
         // Dotted line removed per user request
+    }
+
+    // Helper method to track timeouts and prevent memory leaks
+    setTrackedTimeout(callback, delay) {
+        const timeoutId = setTimeout(() => {
+            callback();
+            // Remove from active timeouts after execution
+            const index = this.activeTimeouts.indexOf(timeoutId);
+            if (index > -1) {
+                this.activeTimeouts.splice(index, 1);
+            }
+        }, delay);
+        this.activeTimeouts.push(timeoutId);
+        return timeoutId;
+    }
+
+    // Cleanup method to clear all active timeouts
+    clearAllTimeouts() {
+        this.activeTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        this.activeTimeouts = [];
+        if (this.nameCheckTimeout) {
+            clearTimeout(this.nameCheckTimeout);
+            this.nameCheckTimeout = null;
+        }
     }
 
     // drawControlsHint() {

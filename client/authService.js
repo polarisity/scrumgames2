@@ -17,21 +17,25 @@ class AuthService {
     async init() {
         // Listen for auth state changes
         auth.onAuthStateChanged(async (user) => {
-            this.currentUser = user;
-            if (user) {
-                console.log('Auth state changed: User signed in', {
-                    uid: user.uid,
-                    email: user.email,
-                    isAnonymous: user.isAnonymous
-                });
-                await this.saveTokenToCookie();
-                await this.loadUserProfile();
-            } else {
-                console.log('Auth state changed: User signed out');
-                this.userProfile = null;
-                this.clearTokenCookie();
+            try {
+                this.currentUser = user;
+                if (user) {
+                    console.log('Auth state changed: User signed in', {
+                        uid: user.uid,
+                        email: user.email,
+                        isAnonymous: user.isAnonymous
+                    });
+                    await this.saveTokenToCookie();
+                    await this.loadUserProfile();
+                } else {
+                    console.log('Auth state changed: User signed out');
+                    this.userProfile = null;
+                    this.clearTokenCookie();
+                }
+                this.notifyListeners();
+            } catch (error) {
+                console.error('Error in auth state change handler:', error);
             }
-            this.notifyListeners();
         });
 
         // Try to restore session from cookie
