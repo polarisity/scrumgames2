@@ -163,6 +163,9 @@ class ScrumPokerGame {
             await this.initializeNameCheckSocket();
             this.hideLoadingScreen();
 
+            // Auto-join room if URL has room param and user has a profile
+            this.attemptAutoJoin();
+
         }, 1500);
 
         // Add window focus listener to sync auth state across tabs
@@ -179,6 +182,19 @@ class ScrumPokerGame {
                 }
             }
         });
+    }
+
+    attemptAutoJoin() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+
+        // Only auto-join if:
+        // 1. There's a room code in URL
+        // 2. User has a profile with displayName
+        if (roomCode && this.userProfile?.displayName) {
+            console.log('Auto-joining room:', roomCode);
+            this.connectAndJoinRoom(this.userProfile.displayName, roomCode.toUpperCase());
+        }
     }
 
     async initializeNameCheckSocket() {
