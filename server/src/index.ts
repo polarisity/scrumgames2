@@ -6,6 +6,7 @@ import cors from 'cors';
 import path from 'path';
 import { SocketHandler } from './handlers/SocketHandler';
 import { authMiddleware, AuthenticatedSocket } from './middleware/authMiddleware';
+import { userService } from './services/UserService';
 
 const app = express();
 const server = createServer(app);
@@ -41,4 +42,34 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Scrum Poker server running on port ${PORT}`);
+
+  // Initialize season management after server starts
+  initializeSeasonManagement();
 });
+
+/**
+ * Initialize season management - ensure current season exists and set up periodic checks
+ */
+async function initializeSeasonManagement(): Promise<void> {
+  try {
+    // Check for season transitions and ensure current season exists
+    await userService.checkAndHandleSeasonTransition();
+
+    // Refresh the leaderboard on startup
+    await userService.refreshSeasonLeaderboard();
+
+    console.log('Season management initialized');
+
+    // Set up hourly check for season transitions
+    const ONE_HOUR = 60 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        await userService.checkAndHandleSeasonTransition();
+      } catch (error) {
+        console.error('Error in season transition check:', error);
+      }
+    }, ONE_HOUR);
+  } catch (error) {
+    console.error('Failed to initialize season management:', error);
+  }
+}

@@ -54,6 +54,17 @@
                     <div class="or-divider">OR</div>
                     <button id="createRoomBtn" class="secondary-btn">Create New Room</button>
                 </div>
+
+                <!-- Leaderboard Section -->
+                <div class="leaderboard-section">
+                    <div class="leaderboard-header">
+                        <h3>Season <span id="currentSeasonNum">1</span> Leaderboard</h3>
+                        <span class="season-dates" id="seasonDates"></span>
+                    </div>
+                    <div id="landingLeaderboard" class="leaderboard-list">
+                        <div class="leaderboard-loading">Loading...</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -101,6 +112,9 @@
                                 <hr>
                                 <button id="editProfileBtn" class="menu-item">
                                     <i class="material-icons">edit</i> Edit Profile
+                                </button>
+                                <button id="showLeaderboardBtn" class="menu-item">
+                                    <i class="material-icons">leaderboard</i> Leaderboard
                                 </button>
                                 <button id="menuSignUpBtn" class="menu-item hidden">
                                     <i class="material-icons">person_add</i> Sign Up
@@ -254,6 +268,22 @@
                 </div>
 
                 <button id="saveProfileBtn" class="primary-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboardModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Season <span id="modalSeasonNum">1</span> Leaderboard</h2>
+                <button id="closeLeaderboardModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="season-info" id="modalSeasonDates"></p>
+                <div id="gameLeaderboard" class="leaderboard-list">
+                    <div class="leaderboard-loading">Loading...</div>
+                </div>
             </div>
         </div>
     </div>

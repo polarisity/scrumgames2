@@ -1327,3 +1327,123 @@ body {
     border-color: #ffd32a;
     background: rgba(255, 211, 42, 0.2);
 }
+
+/* =====================================================
+   LEADERBOARD STYLES
+   ===================================================== */
+
+.leaderboard-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.leaderboard-header h3 {
+    color: #a29bfe;
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.season-dates {
+    font-size: 0.75rem;
+    color: #636e72;
+}
+
+.season-info {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #636e72;
+    margin-bottom: 1rem;
+}
+
+.leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.leaderboard-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.leaderboard-entry:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-entry.is-me {
+    background: rgba(108, 92, 231, 0.15);
+    border: 1px solid rgba(108, 92, 231, 0.3);
+}
+
+.leaderboard-rank {
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 28px;
+    text-align: center;
+    color: #b2bec3;
+}
+
+.leaderboard-rank.gold {
+    color: #ffd32a;
+}
+
+.leaderboard-rank.silver {
+    color: #dfe6e9;
+}
+
+.leaderboard-rank.bronze {
+    color: #e17055;
+}
+
+.leaderboard-avatar {
+    font-size: 1.4rem;
+}
+
+.leaderboard-name {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.leaderboard-points {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #ffd32a;
+}
+
+.leaderboard-loading,
+.leaderboard-empty {
+    text-align: center;
+    color: #636e72;
+    padding: 2rem 1rem;
+    font-size: 0.9rem;
+}
+
+/* Leaderboard modal specific styles */
+#leaderboardModal .modal-body {
+    padding: 1.5rem;
+}
+
+#leaderboardModal .leaderboard-list {
+    max-height: 400px;
+}
