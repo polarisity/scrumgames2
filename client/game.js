@@ -214,22 +214,31 @@ class ScrumPokerGame {
             }
         }
 
-        this.nameCheckSocket = io({
-            auth: { token }
-        });
+        return new Promise((resolve) => {
+            this.nameCheckSocket = io({
+                auth: { token }
+            });
 
-        this.nameCheckSocket.on('connect', () => {
-            console.log('Name check socket connected');
-        });
+            this.nameCheckSocket.on('connect', () => {
+                console.log('Name check socket connected');
+                resolve();
+            });
 
-        this.nameCheckSocket.on('connect_error', async (error) => {
-            console.warn('Name check socket connection error:', error.message);
-            // If connection failed due to auth, try reconnecting with fresh token
-            if (authService.currentUser && error.message.includes('auth')) {
-                const freshToken = await authService.getIdToken(true);
-                this.nameCheckSocket.auth = { token: freshToken };
-                this.nameCheckSocket.connect();
-            }
+            this.nameCheckSocket.on('connect_error', async (error) => {
+                console.warn('Name check socket connection error:', error.message);
+                // If connection failed due to auth, try reconnecting with fresh token
+                if (authService.currentUser && error.message.includes('auth')) {
+                    const freshToken = await authService.getIdToken(true);
+                    this.nameCheckSocket.auth = { token: freshToken };
+                    this.nameCheckSocket.connect();
+                } else {
+                    // Resolve anyway so we don't block forever
+                    resolve();
+                }
+            });
+
+            // Timeout fallback in case connection hangs
+            setTimeout(() => resolve(), 5000);
         });
     }
 
