@@ -90,6 +90,33 @@ export class SocketHandler {
       }
     });
 
+    // Get leaderboard event (public - no authentication required)
+    socket.on('getLeaderboard', async (callback: (result: {
+      season: { year: number; seasonNumber: number; seasonId: string; startDate: string; endDate: string } | null;
+      leaderboard: Array<{ uid: string; displayName: string; avatar: string; points: number }>;
+    }) => void) => {
+      try {
+        const data = await userService.getSeasonLeaderboard();
+        if (data) {
+          callback({
+            season: {
+              year: data.season.year,
+              seasonNumber: data.season.seasonNumber,
+              seasonId: data.season.seasonId,
+              startDate: data.season.startDate.toISOString(),
+              endDate: data.season.endDate.toISOString(),
+            },
+            leaderboard: data.leaderboard,
+          });
+        } else {
+          callback({ season: null, leaderboard: [] });
+        }
+      } catch (error) {
+        console.error('Error getting leaderboard:', error);
+        callback({ season: null, leaderboard: [] });
+      }
+    });
+
     // Handle both old format (string) and new format (object with avatar)
     socket.on('createRoom', (data: string | { playerName: string; avatar?: string; token?: string }) => {
       let playerName: string;
@@ -401,7 +428,7 @@ export class SocketHandler {
       const player = room.players.get(playerId);
       if (player && player.firebaseUid && points > 0) {
         try {
-          const newTotal = await userService.addPoints(player.firebaseUid, points);
+          const newTotal = await userService.addPoints(player.firebaseUid, points, roomId);
           player.points = newTotal;
           pointsAwarded.push({ playerId, points });
           console.log(`Awarded ${points} points to player ${player.name} (total: ${newTotal})`);
@@ -414,6 +441,10 @@ export class SocketHandler {
     // Broadcast points awarded event
     if (pointsAwarded.length > 0) {
       this.io.to(roomId).emit('pointsAwarded', pointsAwarded);
+      // Refresh leaderboard in background (don't block)
+      userService.refreshSeasonLeaderboard().catch(err => {
+        console.error('Failed to refresh leaderboard after points award:', err);
+      });
     }
   }
 

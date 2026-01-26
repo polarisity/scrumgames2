@@ -25,34 +25,47 @@
 
         <!-- Login Screen -->
         <div id="loginScreen" class="screen">
-            <div class="login-container">
-                <h1>🎯 Scrum Poker Party</h1>
-                <!-- Welcome back message for registered users -->
-                <div id="welcomeBackSection" class="welcome-back hidden">
-                    <div class="user-info-card">
-                        <div class="user-avatar" id="welcomeAvatar"></div>
-                        <div class="user-details">
-                            <span class="user-name" id="welcomeName"></span>
-                            <span class="user-points"><span id="welcomePoints">0</span> points</span>
+            <div class="login-layout">
+                <div class="login-container">
+                    <h1>🎯 Scrum Poker Party</h1>
+                    <!-- Welcome back message for registered users -->
+                    <div id="welcomeBackSection" class="welcome-back hidden">
+                        <div class="user-info-card">
+                            <div class="user-avatar" id="welcomeAvatar"></div>
+                            <div class="user-details">
+                                <span class="user-name" id="welcomeName"></span>
+                                <span class="user-points"><span id="welcomePoints">0</span> points</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Name input for anonymous users -->
-                <div id="nameInputSection">
-                    <input type="text" id="playerName" placeholder="Enter your display name" maxlength="20">
-                    <div id="nameAvailability" class="name-availability"></div>
-                    <div class="auth-options" style="margin-top: 10px; text-align: center;">
-                        <button id="landingSignInBtn" class="text-btn" style="font-size: 0.9em;">Existing User? Sign
-                            In</button>
+                    <!-- Name input for anonymous users -->
+                    <div id="nameInputSection">
+                        <input type="text" id="playerName" placeholder="Enter your display name" maxlength="20">
+                        <div id="nameAvailability" class="name-availability"></div>
+                        <div class="auth-options" style="margin-top: 10px; text-align: center;">
+                            <button id="landingSignInBtn" class="text-btn" style="font-size: 0.9em;">Existing User? Sign
+                                In</button>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6">
+                        <button id="joinRoomBtn" class="primary-btn">Join Room</button>
+                        <div class="or-divider">OR</div>
+                        <button id="createRoomBtn" class="secondary-btn">Create New Room</button>
                     </div>
                 </div>
 
-                <div class="button-group">
-                    <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6">
-                    <button id="joinRoomBtn" class="primary-btn">Join Room</button>
-                    <div class="or-divider">OR</div>
-                    <button id="createRoomBtn" class="secondary-btn">Create New Room</button>
+                <!-- Leaderboard Panel -->
+                <div class="leaderboard-panel">
+                    <div class="leaderboard-header">
+                        <h3>Season <span id="currentSeasonNum">1</span> Leaderboard</h3>
+                        <span class="season-dates" id="seasonDates"></span>
+                    </div>
+                    <div id="landingLeaderboard" class="leaderboard-list">
+                        <div class="leaderboard-loading">Loading...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -101,6 +114,9 @@
                                 <hr>
                                 <button id="editProfileBtn" class="menu-item">
                                     <i class="material-icons">edit</i> Edit Profile
+                                </button>
+                                <button id="showLeaderboardBtn" class="menu-item">
+                                    <i class="material-icons">leaderboard</i> Leaderboard
                                 </button>
                                 <button id="menuSignUpBtn" class="menu-item hidden">
                                     <i class="material-icons">person_add</i> Sign Up
@@ -254,6 +270,22 @@
                 </div>
 
                 <button id="saveProfileBtn" class="primary-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboardModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Season <span id="modalSeasonNum">1</span> Leaderboard</h2>
+                <button id="closeLeaderboardModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="season-info" id="modalSeasonDates"></p>
+                <div id="gameLeaderboard" class="leaderboard-list">
+                    <div class="leaderboard-loading">Loading...</div>
+                </div>
             </div>
         </div>
     </div>

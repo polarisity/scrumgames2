@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Display names - only server can write, no client reads allowed
+    match /displayNames/{displayName} {
+      allow read, write: if false; // Only server via Admin SDK
+    }
+
+    // Users can only read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Point transactions - users can read their own, only server can write
+      match /pointTransactions/{transactionId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false; // Only server via Admin SDK
+      }
+    }
+
+    // Seasons - server-only access via Admin SDK
+    match /seasons/{seasonId} {
+      allow read, write: if false;
+    }
+  }
+}

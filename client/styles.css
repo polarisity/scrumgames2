@@ -35,6 +35,14 @@ body {
 }
 
 /* Login Screen */
+.login-layout {
+    display: flex;
+    gap: 2rem;
+    align-items: stretch;
+    max-width: 900px;
+    width: 95%;
+}
+
 .login-container {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(20px);
@@ -44,9 +52,8 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     text-align: center;
-    max-width: 1120px;
-    min-width: fit-content;
-    width: 95%;
+    flex: 1;
+    min-width: 320px;
     color: white;
 }
 
@@ -786,6 +793,23 @@ body {
     }
 }
 
+@media (max-width: 800px) {
+    .login-layout {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .leaderboard-panel {
+        width: 100%;
+        min-width: unset;
+        max-width: 400px;
+    }
+
+    .leaderboard-panel .leaderboard-list {
+        max-height: 250px;
+    }
+}
+
 @media (max-width: 768px) {
     .avatar-grid {
         grid-template-columns: repeat(4, 1fr);
@@ -1326,4 +1350,146 @@ body {
 .modal-body .avatar-option.selected {
     border-color: #ffd32a;
     background: rgba(255, 211, 42, 0.2);
+}
+
+/* =====================================================
+   LEADERBOARD STYLES
+   ===================================================== */
+
+/* Leaderboard Panel (side panel on landing page) */
+.leaderboard-panel {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 1.5rem;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    width: 280px;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    color: white;
+}
+
+.leaderboard-panel .leaderboard-header {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-panel .leaderboard-list {
+    flex: 1;
+    max-height: none;
+    overflow-y: auto;
+}
+
+.leaderboard-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.leaderboard-header h3 {
+    color: #a29bfe;
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.season-dates {
+    font-size: 0.75rem;
+    color: #636e72;
+}
+
+.season-info {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #636e72;
+    margin-bottom: 1rem;
+}
+
+.leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.leaderboard-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.leaderboard-entry:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-entry.is-me {
+    background: rgba(108, 92, 231, 0.15);
+    border: 1px solid rgba(108, 92, 231, 0.3);
+}
+
+.leaderboard-rank {
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 28px;
+    text-align: center;
+    color: #b2bec3;
+}
+
+.leaderboard-rank.gold {
+    color: #ffd32a;
+}
+
+.leaderboard-rank.silver {
+    color: #dfe6e9;
+}
+
+.leaderboard-rank.bronze {
+    color: #e17055;
+}
+
+.leaderboard-avatar {
+    font-size: 1.4rem;
+}
+
+.leaderboard-name {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.leaderboard-points {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #ffd32a;
+}
+
+.leaderboard-loading,
+.leaderboard-empty {
+    text-align: center;
+    color: #636e72;
+    padding: 2rem 1rem;
+    font-size: 0.9rem;
+}
+
+/* Leaderboard modal specific styles */
+#leaderboardModal .modal-body {
+    padding: 1.5rem;
+}
+
+#leaderboardModal .leaderboard-list {
+    max-height: 400px;
 }

@@ -21,6 +21,11 @@ class ScrumPokerGame {
         this.nameCheckTimeout = null;
         this.isNameAvailable = false;
 
+        // Leaderboard state
+        this.leaderboardCache = null;
+        this.leaderboardCacheTime = 0;
+        this.LEADERBOARD_CACHE_TTL = 60000; // 1 minute cache
+
         // Timeout tracking for cleanup
         this.activeTimeouts = [];
 
@@ -163,6 +168,9 @@ class ScrumPokerGame {
             await this.initializeNameCheckSocket();
             this.hideLoadingScreen();
 
+            // Auto-join room if URL has room param and user has a profile
+            this.attemptAutoJoin();
+
         }, 1500);
 
         // Add window focus listener to sync auth state across tabs
@@ -181,6 +189,19 @@ class ScrumPokerGame {
         });
     }
 
+    attemptAutoJoin() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+
+        // Only auto-join if:
+        // 1. There's a room code in URL
+        // 2. User has a profile with displayName
+        if (roomCode && this.userProfile?.displayName) {
+            console.log('Auto-joining room:', roomCode);
+            this.connectAndJoinRoom(this.userProfile.displayName, roomCode.toUpperCase());
+        }
+    }
+
     async initializeNameCheckSocket() {
         // Create a temporary socket connection for name checking
         // Only try to get a token if user is authenticated
@@ -193,22 +214,31 @@ class ScrumPokerGame {
             }
         }
 
-        this.nameCheckSocket = io({
-            auth: { token }
-        });
+        return new Promise((resolve) => {
+            this.nameCheckSocket = io({
+                auth: { token }
+            });
 
-        this.nameCheckSocket.on('connect', () => {
-            console.log('Name check socket connected');
-        });
+            this.nameCheckSocket.on('connect', () => {
+                console.log('Name check socket connected');
+                resolve();
+            });
 
-        this.nameCheckSocket.on('connect_error', async (error) => {
-            console.warn('Name check socket connection error:', error.message);
-            // If connection failed due to auth, try reconnecting with fresh token
-            if (authService.currentUser && error.message.includes('auth')) {
-                const freshToken = await authService.getIdToken(true);
-                this.nameCheckSocket.auth = { token: freshToken };
-                this.nameCheckSocket.connect();
-            }
+            this.nameCheckSocket.on('connect_error', async (error) => {
+                console.warn('Name check socket connection error:', error.message);
+                // If connection failed due to auth, try reconnecting with fresh token
+                if (authService.currentUser && error.message.includes('auth')) {
+                    const freshToken = await authService.getIdToken(true);
+                    this.nameCheckSocket.auth = { token: freshToken };
+                    this.nameCheckSocket.connect();
+                } else {
+                    // Resolve anyway so we don't block forever
+                    resolve();
+                }
+            });
+
+            // Timeout fallback in case connection hangs
+            setTimeout(() => resolve(), 5000);
         });
     }
 
@@ -227,6 +257,9 @@ class ScrumPokerGame {
     hideLoadingScreen() {
         document.getElementById('loadingScreen').classList.remove('active');
         document.getElementById('loginScreen').classList.add('active');
+
+        // Load leaderboard on landing page
+        this.loadLandingLeaderboard();
     }
 
     updateUIForAuthState() {
@@ -547,6 +580,142 @@ class ScrumPokerGame {
                 document.getElementById('editDisplayName').value = this.userProfile.displayName || '';
             }
         });
+
+        // Leaderboard modal
+        document.getElementById('showLeaderboardBtn')?.addEventListener('click', () => {
+            this.showLeaderboardModal();
+        });
+
+        document.getElementById('closeLeaderboardModal')?.addEventListener('click', () => {
+            document.getElementById('leaderboardModal').classList.add('hidden');
+        });
+    }
+
+    /**
+     * Fetch leaderboard data from server via socket
+     */
+    async fetchLeaderboard(forceRefresh = false) {
+        const now = Date.now();
+
+        // Return cached data if fresh
+        if (!forceRefresh && this.leaderboardCache &&
+            (now - this.leaderboardCacheTime) < this.LEADERBOARD_CACHE_TTL) {
+            return this.leaderboardCache;
+        }
+
+        return new Promise((resolve) => {
+            const socketToUse = this.socket?.connected ? this.socket : this.nameCheckSocket;
+
+            if (!socketToUse || !socketToUse.connected) {
+                resolve(null);
+                return;
+            }
+
+            socketToUse.emit('getLeaderboard', (result) => {
+                if (result && result.season) {
+                    this.leaderboardCache = result;
+                    this.leaderboardCacheTime = Date.now();
+                }
+                resolve(result);
+            });
+        });
+    }
+
+    /**
+     * Format date range for display
+     */
+    formatSeasonDates(startDateStr, endDateStr) {
+        const start = new Date(startDateStr);
+        const end = new Date(endDateStr);
+
+        const options = { month: 'short', day: 'numeric' };
+        const startFormatted = start.toLocaleDateString('en-US', options);
+        const endFormatted = end.toLocaleDateString('en-US', options);
+        const year = end.getFullYear();
+
+        return `${startFormatted} - ${endFormatted}, ${year}`;
+    }
+
+    /**
+     * Render leaderboard entries to a container
+     */
+    renderLeaderboard(containerId, data) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (!data || !data.leaderboard || data.leaderboard.length === 0) {
+            container.innerHTML = '<div class="leaderboard-empty">No players yet. Be the first to earn points!</div>';
+            return;
+        }
+
+        const currentUid = this.userProfile?.uid || authService?.currentUser?.uid;
+
+        container.innerHTML = data.leaderboard.map((entry, index) => {
+            const rank = index + 1;
+            const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+            const isMe = entry.uid === currentUid;
+            const avatarEmoji = this.getAvatarEmoji(entry.avatar);
+
+            return `
+                <div class="leaderboard-entry${isMe ? ' is-me' : ''}">
+                    <span class="leaderboard-rank ${rankClass}">${rank}</span>
+                    <span class="leaderboard-avatar">${avatarEmoji}</span>
+                    <span class="leaderboard-name">${this.escapeHtml(entry.displayName)}</span>
+                    <span class="leaderboard-points">${entry.points} pts</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Load leaderboard on landing page
+     */
+    async loadLandingLeaderboard() {
+        const data = await this.fetchLeaderboard();
+
+        // Update season info
+        if (data && data.season) {
+            const seasonNumEl = document.getElementById('currentSeasonNum');
+            const seasonDatesEl = document.getElementById('seasonDates');
+
+            if (seasonNumEl) seasonNumEl.textContent = data.season.seasonNumber;
+            if (seasonDatesEl) seasonDatesEl.textContent = this.formatSeasonDates(data.season.startDate, data.season.endDate);
+        }
+
+        this.renderLeaderboard('landingLeaderboard', data);
+    }
+
+    /**
+     * Show leaderboard modal (from game page)
+     */
+    async showLeaderboardModal() {
+        document.getElementById('leaderboardModal').classList.remove('hidden');
+        document.getElementById('profileMenu').classList.add('hidden');
+
+        // Show loading state
+        document.getElementById('gameLeaderboard').innerHTML = '<div class="leaderboard-loading">Loading...</div>';
+
+        const data = await this.fetchLeaderboard(true); // Force refresh
+
+        // Update modal season info
+        if (data && data.season) {
+            const modalSeasonNumEl = document.getElementById('modalSeasonNum');
+            const modalSeasonDatesEl = document.getElementById('modalSeasonDates');
+
+            if (modalSeasonNumEl) modalSeasonNumEl.textContent = data.season.seasonNumber;
+            if (modalSeasonDatesEl) modalSeasonDatesEl.textContent = this.formatSeasonDates(data.season.startDate, data.season.endDate);
+        }
+
+        this.renderLeaderboard('gameLeaderboard', data);
     }
 
     generateGrassTile() {
