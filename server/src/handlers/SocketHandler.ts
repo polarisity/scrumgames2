@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { RoomService } from '../services/RoomService';
 import { Player, Throwable } from '../types/game.types';
 import { userService } from '../services/UserService';
+import { remoteConfigService } from '../services/RemoteConfigService';
 import { AuthenticatedSocket } from '../middleware/authMiddleware';
 
 export class SocketHandler {
@@ -20,6 +21,13 @@ export class SocketHandler {
     // Display name validation event
     socket.on('checkDisplayName', async (displayName: string, callback: (result: { available: boolean }) => void) => {
       try {
+        // Check if feature is enabled via Remote Config
+        const checkEnabled = await remoteConfigService.isDisplayNameCheckEnabled();
+        if (!checkEnabled) {
+          callback({ available: true });
+          return;
+        }
+
         const available = await userService.isDisplayNameAvailable(displayName, socket.firebaseUid);
         callback({ available });
       } catch (error) {

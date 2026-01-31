@@ -1,5 +1,6 @@
 import { firebaseDb, firebaseAdmin } from './firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { remoteConfigService } from './RemoteConfigService';
 
 export interface UserProfile {
     uid: string;
@@ -204,6 +205,12 @@ export class UserService {
      * Check if a display name is available
      */
     async isDisplayNameAvailable(displayName: string, excludeUid?: string): Promise<boolean> {
+        // Check if feature is enabled via Remote Config
+        const checkEnabled = await remoteConfigService.isDisplayNameCheckEnabled();
+        if (!checkEnabled) {
+            return true; // Skip conflict check when disabled
+        }
+
         if (!this.isFirebaseInitialized()) {
             return true; // Allow any name when Firebase is not configured
         }
