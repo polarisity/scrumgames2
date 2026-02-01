@@ -60,13 +60,16 @@ async function initializeSeasonManagement(): Promise<void> {
 
     console.log('Season management initialized');
 
-    // Set up hourly check for season transitions
+    // Set up hourly maintenance checks
     const ONE_HOUR = 60 * 60 * 1000;
     setInterval(async () => {
       try {
         await userService.checkAndHandleSeasonTransition();
+
+        // Archive inactive anonymous users (30 days inactivity)
+        await userService.archiveInactiveUsers();
       } catch (error) {
-        console.error('Error in season transition check:', error);
+        console.error('Error in hourly maintenance:', error);
       }
     }, ONE_HOUR);
   } catch (error) {

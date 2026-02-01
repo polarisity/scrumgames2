@@ -76,6 +76,16 @@ export class RoomService {
     }
   }
 
+  updatePlayerName(roomId: string, playerId: string, name: string): boolean {
+    const room = this.rooms.get(roomId);
+    const player = room?.players.get(playerId);
+    if (player) {
+      player.name = name;
+      return true;
+    }
+    return false;
+  }
+
   selectCard(roomId: string, playerId: string, card: string): void {
     const room = this.rooms.get(roomId);
     const player = room?.players.get(playerId);
