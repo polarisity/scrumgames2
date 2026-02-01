@@ -91,10 +91,29 @@ export class SocketHandler {
       try {
         await userService.updateDisplayName(socket.firebaseUid, newDisplayName);
         socket.userProfile.displayName = newDisplayName;
+
+        // Update player name in room and broadcast to other players
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          this.roomService.updatePlayerName(roomId, socket.id, newDisplayName);
+          this.broadcastRoomState(roomId);
+        }
+
         callback({ success: true });
       } catch (error: any) {
         console.error('Error updating display name:', error);
         callback({ success: false, error: error.message || 'Failed to update display name' });
+      }
+    });
+
+    // Get client config (public - for feature flags)
+    socket.on('getClientConfig', async (callback: (result: { displayNameCheckEnabled: boolean }) => void) => {
+      try {
+        const displayNameCheckEnabled = await remoteConfigService.isDisplayNameCheckEnabled();
+        callback({ displayNameCheckEnabled });
+      } catch (error) {
+        console.error('Error getting client config:', error);
+        callback({ displayNameCheckEnabled: false });
       }
     });
 
@@ -397,7 +416,8 @@ export class SocketHandler {
     socket.emit('roomJoined', {
       roomId,
       playerId: socket.id,
-      userProfile: socket.userProfile || null
+      userProfile: socket.userProfile || null,
+      needsNewDisplayName: socket.needsNewDisplayName || false
     });
     console.log(`Player ${playerName} (${socket.id}) with avatar ${avatar} successfully joined room ${roomId}`);
 

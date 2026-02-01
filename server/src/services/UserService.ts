@@ -13,6 +13,8 @@ export interface UserProfile {
     isRegistered: boolean;
     createdAt: FirebaseFirestore.Timestamp;
     updatedAt: FirebaseFirestore.Timestamp;
+    lastActiveAt: FirebaseFirestore.Timestamp;
+    archivedAt?: FirebaseFirestore.Timestamp;
 }
 
 export interface PointTransaction {
@@ -160,7 +162,18 @@ export class UserService {
         try {
             const doc = await firebaseDb!.collection(this.usersCollection).doc(uid).get();
             if (doc.exists) {
-                return doc.data() as UserProfile;
+                const userData = doc.data() as UserProfile;
+
+                // Backfill lastActiveAt for existing users who don't have it
+                if (!userData.lastActiveAt) {
+                    const backfillTimestamp = userData.updatedAt || userData.createdAt;
+                    await firebaseDb!.collection(this.usersCollection).doc(uid).update({
+                        lastActiveAt: backfillTimestamp,
+                    });
+                    userData.lastActiveAt = backfillTimestamp;
+                }
+
+                return userData;
             }
             return null;
         } catch (error) {
@@ -187,6 +200,7 @@ export class UserService {
             isRegistered: false,
             createdAt: FieldValue.serverTimestamp() as any,
             updatedAt: FieldValue.serverTimestamp() as any,
+            lastActiveAt: FieldValue.serverTimestamp() as any,
         };
 
         await firebaseDb!.collection(this.usersCollection).doc(uid).set(userProfile);
@@ -280,7 +294,7 @@ export class UserService {
     }
 
     /**
-     * Update user's avatar (only for registered users)
+     * Update user's avatar (available to all users)
      */
     async updateAvatar(uid: string, avatar: string): Promise<boolean> {
         if (!this.isFirebaseInitialized()) {
@@ -292,13 +306,10 @@ export class UserService {
                 throw new Error('User not found');
             }
 
-            if (!user.isRegistered) {
-                throw new Error('Avatar selection is only available for registered users');
-            }
-
             await firebaseDb!.collection(this.usersCollection).doc(uid).update({
                 avatar,
                 updatedAt: FieldValue.serverTimestamp(),
+                lastActiveAt: FieldValue.serverTimestamp(),
             });
 
             console.log(`Updated avatar for ${uid}: ${avatar}`);
@@ -306,6 +317,154 @@ export class UserService {
         } catch (error) {
             console.error('Failed to update avatar:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Update user's last active timestamp
+     */
+    async updateLastActive(uid: string): Promise<void> {
+        if (!this.isFirebaseInitialized()) return;
+        try {
+            await firebaseDb!.collection(this.usersCollection).doc(uid).update({
+                lastActiveAt: FieldValue.serverTimestamp(),
+            });
+        } catch (error) {
+            console.error('Failed to update lastActiveAt:', error);
+        }
+    }
+
+    /**
+     * Archive a user - removes their display name reservation but keeps user data
+     */
+    async archiveUser(uid: string): Promise<boolean> {
+        if (!this.isFirebaseInitialized()) return false;
+
+        try {
+            const user = await this.getUser(uid);
+            if (!user || user.archivedAt) {
+                return false; // Already archived or doesn't exist
+            }
+
+            await firebaseDb!.runTransaction(async (transaction) => {
+                const userRef = firebaseDb!.collection(this.usersCollection).doc(uid);
+
+                // Mark user as archived
+                transaction.update(userRef, {
+                    archivedAt: FieldValue.serverTimestamp(),
+                    updatedAt: FieldValue.serverTimestamp(),
+                });
+
+                // Free up their display name
+                if (user.displayName) {
+                    const nameRef = firebaseDb!.collection(this.displayNamesCollection)
+                        .doc(user.displayName.toLowerCase());
+                    transaction.delete(nameRef);
+                }
+            });
+
+            console.log(`Archived user ${uid} (${user.displayName}), freed display name`);
+            return true;
+        } catch (error) {
+            console.error('Failed to archive user:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Restore an archived user - requires them to pick a new name if taken
+     */
+    async restoreArchivedUser(uid: string): Promise<{ restored: boolean; needsNewName: boolean }> {
+        if (!this.isFirebaseInitialized()) {
+            return { restored: false, needsNewName: false };
+        }
+
+        try {
+            const user = await this.getUser(uid);
+            if (!user || !user.archivedAt) {
+                return { restored: false, needsNewName: false };
+            }
+
+            // Check if their old display name is still available
+            const nameAvailable = await this.isDisplayNameAvailable(user.displayName);
+
+            await firebaseDb!.runTransaction(async (transaction) => {
+                const userRef = firebaseDb!.collection(this.usersCollection).doc(uid);
+
+                if (nameAvailable) {
+                    // Reclaim the name
+                    const nameRef = firebaseDb!.collection(this.displayNamesCollection)
+                        .doc(user.displayName.toLowerCase());
+                    transaction.set(nameRef, {
+                        uid,
+                        displayName: user.displayName,
+                    });
+
+                    // Restore user
+                    transaction.update(userRef, {
+                        archivedAt: FieldValue.delete(),
+                        lastActiveAt: FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
+                    });
+                } else {
+                    // Name taken - clear their name and restore
+                    transaction.update(userRef, {
+                        archivedAt: FieldValue.delete(),
+                        displayName: '', // Force new name selection
+                        lastActiveAt: FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
+                    });
+                }
+            });
+
+            console.log(`Restored archived user ${uid}, needsNewName: ${!nameAvailable}`);
+            return { restored: true, needsNewName: !nameAvailable };
+        } catch (error) {
+            console.error('Failed to restore archived user:', error);
+            return { restored: false, needsNewName: false };
+        }
+    }
+
+    private INACTIVITY_THRESHOLD_DAYS = 30;
+
+    /**
+     * Find and archive inactive anonymous users
+     */
+    async archiveInactiveUsers(): Promise<number> {
+        if (!this.isFirebaseInitialized()) return 0;
+
+        try {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - this.INACTIVITY_THRESHOLD_DAYS);
+            const cutoffTimestamp = firebaseAdmin!.firestore.Timestamp.fromDate(cutoffDate);
+
+            // Query users who are:
+            // 1. Not registered (only archive anonymous users)
+            // 2. lastActiveAt is older than cutoff
+            const inactiveUsersQuery = await firebaseDb!
+                .collection(this.usersCollection)
+                .where('isRegistered', '==', false)
+                .where('lastActiveAt', '<', cutoffTimestamp)
+                .limit(100) // Process in batches
+                .get();
+
+            let archivedCount = 0;
+            for (const doc of inactiveUsersQuery.docs) {
+                const userData = doc.data();
+                // Double-check not already archived
+                if (!userData.archivedAt) {
+                    const success = await this.archiveUser(doc.id);
+                    if (success) archivedCount++;
+                }
+            }
+
+            if (archivedCount > 0) {
+                console.log(`Archived ${archivedCount} inactive users`);
+            }
+            return archivedCount;
+        } catch (error) {
+            console.error('Failed to archive inactive users:', error);
+            return 0;
         }
     }
 

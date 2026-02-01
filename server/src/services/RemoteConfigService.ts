@@ -12,9 +12,10 @@ class RemoteConfigService {
 
   /**
    * Check if display name conflict checking is enabled
+   * Default is false (disabled) - can be enabled via Remote Config
    */
   async isDisplayNameCheckEnabled(): Promise<boolean> {
-    return this.getBoolean('display_name_conflict_check_enabled', true);
+    return this.getBoolean('display_name_conflict_check_enabled', false);
   }
 
   private async getBoolean(key: string, defaultValue: boolean): Promise<boolean> {

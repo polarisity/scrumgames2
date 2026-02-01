@@ -415,15 +415,11 @@ class AuthService {
     }
 
     /**
-     * Update user's avatar (registered users only)
+     * Update user's avatar (available to all users)
      */
     async updateAvatar(newAvatar) {
         if (!this.currentUser || !this.userProfile) {
             throw new Error('No user profile found');
-        }
-
-        if (!this.userProfile.isRegistered) {
-            throw new Error('Avatar selection is only available for registered users');
         }
 
         try {

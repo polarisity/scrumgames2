@@ -20,6 +20,7 @@ class ScrumPokerGame {
         this.isRegisteredUser = false;
         this.nameCheckTimeout = null;
         this.isNameAvailable = false;
+        this.displayNameCheckEnabled = false; // Remote config flag
 
         // Leaderboard state
         this.leaderboardCache = null;
@@ -221,7 +222,12 @@ class ScrumPokerGame {
 
             this.nameCheckSocket.on('connect', () => {
                 console.log('Name check socket connected');
-                resolve();
+                // Fetch client config (including displayNameCheckEnabled flag)
+                this.nameCheckSocket.emit('getClientConfig', (config) => {
+                    this.displayNameCheckEnabled = config?.displayNameCheckEnabled ?? false;
+                    console.log('Client config loaded, displayNameCheckEnabled:', this.displayNameCheckEnabled);
+                    resolve();
+                });
             });
 
             this.nameCheckSocket.on('connect_error', async (error) => {
@@ -294,22 +300,19 @@ class ScrumPokerGame {
             // Update profile display
             this.updateProfileDisplay();
 
-            if (this.isRegisteredUser) {
-                if (signUpPrompt) signUpPrompt.classList.add('hidden');
-                if (menuSignUpBtn) menuSignUpBtn.classList.add('hidden');
-                if (logoutBtn) logoutBtn.classList.remove('hidden');
-                if (editAvatarSection) editAvatarSection.classList.remove('hidden');
-                if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
-                // Pre-select current avatar for edit profile modal
-                this.selectedAvatar = this.userProfile.avatar;
-                this.highlightSelectedAvatar();
-            } else {
-                if (signUpPrompt) signUpPrompt.classList.remove('hidden');
-                if (menuSignUpBtn) menuSignUpBtn.classList.remove('hidden');
-                if (logoutBtn) logoutBtn.classList.add('hidden');
-                if (editAvatarSection) editAvatarSection.classList.add('hidden');
-                if (editAvatarLocked) editAvatarLocked.classList.remove('hidden');
-            }
+            // TEMPORARILY DISABLED: Email sign-in - hide all sign-up prompts
+            if (signUpPrompt) signUpPrompt.classList.add('hidden');
+            if (menuSignUpBtn) menuSignUpBtn.classList.add('hidden');
+
+            // Show logout button for all users with a profile
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
+
+            // Avatar selection enabled for all users
+            if (editAvatarSection) editAvatarSection.classList.remove('hidden');
+            if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
+            // Pre-select current avatar for edit profile modal
+            this.selectedAvatar = this.userProfile.avatar;
+            this.highlightSelectedAvatar();
         } else {
             // New user - show name input
             if (welcomeSection) welcomeSection.classList.add('hidden');
@@ -351,18 +354,21 @@ class ScrumPokerGame {
                 if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
 
             } else {
-                // Anonymous
-                if (logoutBtn) logoutBtn.classList.add('hidden');
-                if (landingSignInBtn) landingSignInBtn.classList.remove('hidden');
-                if (signUpPrompt) signUpPrompt.classList.remove('hidden');
-                if (menuSignUpBtn) menuSignUpBtn.classList.remove('hidden');
+                // Anonymous - TEMPORARILY DISABLED: Email sign-in
+                // Show logout button for anonymous users too (allows them to start fresh)
+                if (logoutBtn) logoutBtn.classList.remove('hidden');
+                // Hide sign-in buttons since email sign-in is temporarily disabled
+                if (landingSignInBtn) landingSignInBtn.classList.add('hidden');
+                if (signUpPrompt) signUpPrompt.classList.add('hidden');
+                if (menuSignUpBtn) menuSignUpBtn.classList.add('hidden');
 
                 if (document.getElementById('authStatusMsg')) {
                     document.getElementById('authStatusMsg').classList.add('hidden');
                 }
 
-                if (editAvatarSection) editAvatarSection.classList.add('hidden');
-                if (editAvatarLocked) editAvatarLocked.classList.remove('hidden');
+                // Avatar selection enabled for all users
+                if (editAvatarSection) editAvatarSection.classList.remove('hidden');
+                if (editAvatarLocked) editAvatarLocked.classList.add('hidden');
             }
         }
 
@@ -447,6 +453,13 @@ class ScrumPokerGame {
         nameInput.addEventListener('input', (e) => {
             const name = e.target.value.trim();
             clearTimeout(this.nameCheckTimeout);
+
+            // If display name check is disabled, skip validation entirely
+            if (!this.displayNameCheckEnabled) {
+                nameAvailability.textContent = '';
+                this.isNameAvailable = true;
+                return;
+            }
 
             if (name.length < 2) {
                 nameAvailability.textContent = '';
@@ -549,8 +562,8 @@ class ScrumPokerGame {
                 }
             }
 
-            // Update avatar if registered
-            if (this.isRegisteredUser && this.selectedAvatar && this.selectedAvatar !== this.userProfile?.avatar) {
+            // Update avatar (available to all users)
+            if (this.selectedAvatar && this.selectedAvatar !== this.userProfile?.avatar) {
                 try {
                     await authService.updateAvatar(this.selectedAvatar);
                     this.userProfile.avatar = this.selectedAvatar;
@@ -1033,7 +1046,8 @@ class ScrumPokerGame {
                 alert('Please enter your name');
                 return;
             }
-            if (!this.isNameAvailable) {
+            // Only check name availability if the feature is enabled
+            if (this.displayNameCheckEnabled && !this.isNameAvailable) {
                 alert('Please choose an available display name');
                 return;
             }
@@ -1146,7 +1160,7 @@ class ScrumPokerGame {
     }
 
     setupSocketListeners() {
-        this.socket.on('roomJoined', ({ roomId, playerId, userProfile }) => {
+        this.socket.on('roomJoined', ({ roomId, playerId, userProfile, needsNewDisplayName }) => {
             console.log('Successfully joined room:', roomId);
             this.roomId = roomId;
             this.myId = playerId;
@@ -1154,6 +1168,16 @@ class ScrumPokerGame {
                 this.userProfile = userProfile;
                 this.updateUIForAuthState();
             }
+
+            // Handle archived user that needs a new display name
+            if (needsNewDisplayName) {
+                console.log('User needs to choose a new display name (old name was taken)');
+                alert('Welcome back! Your previous display name was taken while you were away. Please choose a new name.');
+                document.getElementById('editProfileModal').classList.remove('hidden');
+                document.getElementById('editDisplayName').value = '';
+                document.getElementById('editDisplayName').placeholder = 'Choose a new display name';
+            }
+
             document.getElementById('roomId').textContent = roomId;
             this.showGameScreen();
 
