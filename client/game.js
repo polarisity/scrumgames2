@@ -565,7 +565,7 @@ class ScrumPokerGame {
             // Update avatar (available to all users)
             if (this.selectedAvatar && this.selectedAvatar !== this.userProfile?.avatar) {
                 try {
-                    await authService.updateAvatar(this.selectedAvatar);
+                    await this.updateAvatarViaSocket(this.selectedAvatar);
                     this.userProfile.avatar = this.selectedAvatar;
                     this.updateUIForAuthState();
                 } catch (error) {
@@ -1113,6 +1113,30 @@ class ScrumPokerGame {
                     resolve();
                 } else {
                     reject(new Error(result.error || 'Failed to update display name'));
+                }
+            });
+        });
+    }
+
+    updateAvatarViaSocket(newAvatar) {
+        return new Promise((resolve, reject) => {
+            // Use the game socket if connected, otherwise use nameCheckSocket
+            const socketToUse = this.socket?.connected ? this.socket : this.nameCheckSocket;
+
+            if (!socketToUse || !socketToUse.connected) {
+                reject(new Error('Not connected to server'));
+                return;
+            }
+
+            socketToUse.emit('updateAvatar', newAvatar, (result) => {
+                if (result.success) {
+                    // Update local profile
+                    if (authService.userProfile) {
+                        authService.userProfile.avatar = newAvatar;
+                    }
+                    resolve();
+                } else {
+                    reject(new Error(result.error || 'Failed to update avatar'));
                 }
             });
         });

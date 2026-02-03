@@ -74,6 +74,14 @@ export class SocketHandler {
       try {
         await userService.updateAvatar(socket.firebaseUid, avatar);
         socket.userProfile.avatar = avatar;
+
+        // Update player avatar in room and broadcast to other players
+        const roomId = this.playerRoomMap.get(socket.id);
+        if (roomId) {
+          this.roomService.updatePlayerAvatar(roomId, socket.id, avatar);
+          this.broadcastRoomState(roomId);
+        }
+
         callback({ success: true });
       } catch (error: any) {
         console.error('Error updating avatar:', error);
