@@ -23,10 +23,16 @@ const io = new Server(server, {
   }
 });
 
+// Socket.IO engine error handler
+io.engine.on('connection_error', (err: any) => {
+  console.error('Socket.IO engine connection error:', err.req?.url, err.code, err.message, err.context);
+});
+
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../../client')));
 

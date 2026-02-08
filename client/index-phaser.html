@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrum Poker - Phaser 4 Development</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+    <style>
+        /* Temporary styles for Phaser development */
+        #phaser-container {
+            width: 1200px;
+            height: 600px;
+            margin: 0 auto;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #phaser-container canvas {
+            display: block;
+        }
+        .dev-info {
+            text-align: center;
+            padding: 20px;
+            background: #f0f0f0;
+            margin-bottom: 20px;
+        }
+        .dev-info h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .dev-info p {
+            margin: 0;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div class="dev-info">
+            <h1>Phaser 4 Development Mode</h1>
+            <p>This view shows only the Phaser game canvas. The full HTML UI will be integrated later.</p>
+        </div>
+
+        <!-- Phaser Game Container -->
+        <div id="phaser-container"></div>
+
+        <div class="dev-info" style="margin-top: 20px;">
+            <p>Avatars loaded: cat, dog, rabbit, panda, fox, bear, koala, lion</p>
+            <p>Controls: WASD/Arrow keys (not yet implemented in Phaser)</p>
+        </div>
+    </div>
+
+    <!-- Load Phaser via Vite -->
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

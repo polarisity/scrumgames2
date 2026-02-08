@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Phaser 4 Simple Test</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: sans-serif; }
+        #game-container { border: 2px solid #333; }
+        #log { margin-top: 20px; padding: 10px; background: #f0f0f0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Phaser 4 RC6 Test</h1>
+    <div id="game-container"></div>
+    <div id="log"></div>
+
+    <script type="module">
+        const log = (msg) => {
+            document.getElementById('log').textContent += msg + '\n';
+            console.log(msg);
+        };
+
+        try {
+            log('Importing Phaser...');
+            const Phaser = await import('phaser');
+            log('Phaser imported: ' + Object.keys(Phaser).slice(0, 10).join(', ') + '...');
+            log('Phaser.Game exists: ' + (typeof Phaser.Game));
+            log('Phaser.Scene exists: ' + (typeof Phaser.Scene));
+
+            // Try to create a simple game
+            class TestScene extends Phaser.Scene {
+                constructor() {
+                    super({ key: 'TestScene' });
+                }
+                create() {
+                    log('Scene created!');
+                    this.add.text(100, 100, 'Phaser 4 Works!', {
+                        font: '32px Arial',
+                        color: '#ffffff'
+                    });
+                }
+            }
+
+            log('Creating game config...');
+            const config = {
+                type: Phaser.AUTO,
+                width: 800,
+                height: 400,
+                parent: 'game-container',
+                backgroundColor: '#2d2d2d',
+                scene: [TestScene]
+            };
+
+            log('Creating Phaser.Game...');
+            const game = new Phaser.Game(config);
+            log('Game created successfully!');
+
+        } catch (error) {
+            log('ERROR: ' + error.message);
+            log('Stack: ' + error.stack);
+        }
+    </script>
+</body>
+</html>
